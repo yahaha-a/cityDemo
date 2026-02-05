@@ -1,10 +1,12 @@
+name: Build & Release
+
 on:
   push:
-    tags: ["*"]
+    branches: [main, dev]
+    tags: ["v*"]
 
 jobs:
-  release:
-    if: startsWith(github.ref, 'refs/tags/v')
+  build:
     runs-on: ${{ matrix.os }}
 
     strategy:
@@ -14,35 +16,64 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-      - run: npm i -g --force corepack && corepack enable
 
-      - name: Install Node.js, NPM and PNPM
+      - name: Setup corepack
+        run: npm i -g --force corepack && corepack enable
+
+      - name: Install Node.js and PNPM
         uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: "pnpm"
-      - run: pnpm install
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Generate version
+        id: version
+        shell: bash
+        run: |
+          BASE_VERSION=$(node -p "require('./package.json').version")
+          if [[ "${{ github.ref }}" == refs/tags/v* ]]; then
+            # Tag 推送：使用 tag 名称作为版本号
+            VERSION="${{ github.ref_name }}"
+            VERSION="${VERSION#v}"
+          elif [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
+            # main 分支：使用 package.json 版本号
+            VERSION="${BASE_VERSION}"
+          else
+            # dev 分支：自动生成版本号 (版本号-dev.构建号.commit短哈希)
+            SHORT_SHA=$(echo "${{ github.sha }}" | cut -c1-7)
+            VERSION="${BASE_VERSION}-dev.${{ github.run_number }}.${SHORT_SHA}"
+          fi
+          echo "version=${VERSION}" >> $GITHUB_OUTPUT
+          echo "Generated version: ${VERSION}"
+
+      - name: Update package.json version
+        shell: bash
+        run: |
+          node -e "
+            const fs = require('fs');
+            const pkg = require('./package.json');
+            pkg.version = '${{ steps.version.outputs.version }}';
+            fs.writeFileSync('package.json', JSON.stringify(pkg, null, 2) + '\n');
+          "
 
       - name: apt-update
-        if: startsWith(matrix.os, 'ubuntu-latest')
+        if: matrix.os == 'ubuntu-latest'
         run: sudo apt-get update
 
       - name: autoremove
-        if: startsWith(matrix.os, 'ubuntu-latest')
+        if: matrix.os == 'ubuntu-latest'
         run: sudo apt autoremove
 
       - name: Install libarchive rpm on Linux
-        if: startsWith(matrix.os, 'ubuntu-latest')
+        if: matrix.os == 'ubuntu-latest'
         run: sudo apt-get install libarchive-tools rpm
 
-      - name: Release Electron app
+      - name: Build Electron app
         uses: daltonmenezes/action-electron-builder@v1.0.1
         with:
           package_manager: "pnpm"
-          # GitHub token, automatically provided to the action
-          # (No need to define this secret in the repo settings)
           github_token: ${{ secrets.github_token }}
-
-          # If the commit is tagged with a version (e.g. "v1.0.0"),
-          # release the app after building
           release: true
