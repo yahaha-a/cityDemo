@@ -4,12 +4,16 @@ import { GameLoop } from '../engine/game-loop'
 import { IsometricRenderer } from '../renderer/isometric-renderer'
 import { BuildingSystem } from '../systems/building-system'
 import { MapSystem } from '../systems/map-system'
+import { RoadSystem } from '../systems/road-system'
+import { EconomySystem } from '../systems/economy-system'
 import { InputHandler } from '../input/input-handler'
 
 export interface GameEngine {
   stateManager: GameStateManager
   buildingSystem: BuildingSystem
   mapSystem: MapSystem
+  roadSystem: RoadSystem
+  economySystem: EconomySystem
 }
 
 /**
@@ -25,12 +29,20 @@ export function useGameEngine(
     renderer: IsometricRenderer
     buildingSystem: BuildingSystem
     mapSystem: MapSystem
+    roadSystem: RoadSystem
+    economySystem: EconomySystem
     inputHandler: InputHandler
   } | null>(null)
 
   const stateManagerRef = useRef<GameStateManager>(new GameStateManager())
+  const roadSystemRef = useRef<RoadSystem>(
+    new RoadSystem(stateManagerRef.current)
+  )
+  const economySystemRef = useRef<EconomySystem>(
+    new EconomySystem(stateManagerRef.current)
+  )
   const buildingSystemRef = useRef<BuildingSystem>(
-    new BuildingSystem(stateManagerRef.current)
+    new BuildingSystem(stateManagerRef.current, roadSystemRef.current)
   )
   const mapSystemRef = useRef<MapSystem>(new MapSystem(stateManagerRef.current))
 
@@ -39,10 +51,12 @@ export function useGameEngine(
     if (!canvas) return
 
     const stateManager = stateManagerRef.current
+    const economySystem = economySystemRef.current
     const renderer = new IsometricRenderer(canvas)
-    const gameLoop = new GameLoop(renderer, stateManager)
+    const gameLoop = new GameLoop(renderer, stateManager, economySystem)
     const buildingSystem = buildingSystemRef.current
     const mapSystem = mapSystemRef.current
+    const roadSystem = roadSystemRef.current
     const inputHandler = new InputHandler(
       canvas,
       stateManager,
@@ -56,6 +70,8 @@ export function useGameEngine(
       renderer,
       buildingSystem,
       mapSystem,
+      roadSystem,
+      economySystem,
       inputHandler,
     }
 
@@ -64,6 +80,7 @@ export function useGameEngine(
       const parent = canvas.parentElement
       if (!parent) return
       renderer.resize(parent.clientWidth, parent.clientHeight)
+      inputHandler.invalidateRectCache()
     }
 
     handleResize()
@@ -84,5 +101,7 @@ export function useGameEngine(
     stateManager: stateManagerRef.current,
     buildingSystem: buildingSystemRef.current,
     mapSystem: mapSystemRef.current,
+    roadSystem: roadSystemRef.current,
+    economySystem: economySystemRef.current,
   }
 }

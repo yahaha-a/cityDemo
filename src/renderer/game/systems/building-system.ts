@@ -1,6 +1,7 @@
 import { TileType, ToolType, toolToTileType } from 'shared/game-types'
 import { BUILDING_COSTS, DEMOLISH_REFUND_RATIO } from '../constants'
 import type { GameStateManager } from '../engine/game-state'
+import type { RoadSystem } from './road-system'
 import { isInBounds } from '../input/coordinate-utils'
 
 /**
@@ -8,9 +9,11 @@ import { isInBounds } from '../input/coordinate-utils'
  */
 export class BuildingSystem {
   private stateManager: GameStateManager
+  private roadSystem: RoadSystem
 
-  constructor(stateManager: GameStateManager) {
+  constructor(stateManager: GameStateManager, roadSystem: RoadSystem) {
     this.stateManager = stateManager
+    this.roadSystem = roadSystem
   }
 
   /**
@@ -42,6 +45,10 @@ export class BuildingSystem {
     if (!this.stateManager.spendMoney(cost)) return false
 
     this.stateManager.setTileAt(x, y, tileType, 1)
+
+    // 更新道路连接状态（仅局部）
+    this.roadSystem.updateLocalConnections(x, y)
+
     return true
   }
 
@@ -56,6 +63,10 @@ export class BuildingSystem {
     }
 
     this.stateManager.setTileAt(x, y, TileType.Empty, 0)
+
+    // 更新道路连接状态（仅局部）
+    this.roadSystem.updateLocalConnections(x, y)
+
     return true
   }
 }
