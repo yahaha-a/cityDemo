@@ -1,0 +1,31 @@
+# dependencies
+node_modules/
+
+# production / build output
+/dist
+/build
+/out
+
+# env files
+.env
+.env.*
+!.env.example
+
+# testing
+/coverage
+
+# logs
+*.log
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# TypeScript
+*.tsbuildinfo
+
+# Electron
+*.asar
+
+# pnpm
+.pnpm-debug.log*
