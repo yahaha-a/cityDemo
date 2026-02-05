@@ -4,12 +4,18 @@ import { GameLoop } from '../engine/game-loop'
 import { IsometricRenderer } from '../renderer/isometric-renderer'
 import { BuildingSystem } from '../systems/building-system'
 import { MapSystem } from '../systems/map-system'
+import { RoadSystem } from '../systems/road-system'
+import { EconomySystem } from '../systems/economy-system'
+import { SaveSystem } from '../systems/save-system'
 import { InputHandler } from '../input/input-handler'
 
 export interface GameEngine {
   stateManager: GameStateManager
   buildingSystem: BuildingSystem
   mapSystem: MapSystem
+  roadSystem: RoadSystem
+  economySystem: EconomySystem
+  saveSystem: SaveSystem
 }
 
 interface GameCanvasProps {
@@ -25,6 +31,9 @@ export function GameCanvas({ onEngineReady }: GameCanvasProps) {
     inputHandler: InputHandler
     buildingSystem: BuildingSystem
     mapSystem: MapSystem
+    roadSystem: RoadSystem
+    economySystem: EconomySystem
+    saveSystem: SaveSystem
   } | null>(null)
   const [ready, setReady] = useState(false)
 
@@ -49,15 +58,24 @@ export function GameCanvas({ onEngineReady }: GameCanvasProps) {
       // 如果引擎已存在，只更新渲染器
       if (engineRef.current) {
         engineRef.current.renderer.resize(width, height)
+        engineRef.current.inputHandler.invalidateRectCache()
         return
       }
 
       // 首次初始化引擎
       const stateManager = new GameStateManager()
       const renderer = new IsometricRenderer(canvas)
-      const gameLoop = new GameLoop(renderer, stateManager)
-      const buildingSystem = new BuildingSystem(stateManager)
+
+      // 先创建无依赖的系统
+      const roadSystem = new RoadSystem(stateManager)
+      const economySystem = new EconomySystem(stateManager)
       const mapSystem = new MapSystem(stateManager)
+      const saveSystem = new SaveSystem(stateManager)
+
+      // 创建有依赖的系统
+      const buildingSystem = new BuildingSystem(stateManager, roadSystem)
+      const gameLoop = new GameLoop(renderer, stateManager, economySystem)
+
       const inputHandler = new InputHandler(
         canvas,
         stateManager,
@@ -72,10 +90,14 @@ export function GameCanvas({ onEngineReady }: GameCanvasProps) {
         inputHandler,
         buildingSystem,
         mapSystem,
+        roadSystem,
+        economySystem,
+        saveSystem,
       }
 
       inputHandler.attach()
       gameLoop.start()
+      saveSystem.startAutoSave()
       setReady(true)
     }
 
@@ -94,6 +116,7 @@ export function GameCanvas({ onEngineReady }: GameCanvasProps) {
       if (engineRef.current) {
         engineRef.current.gameLoop.stop()
         engineRef.current.inputHandler.detach()
+        engineRef.current.saveSystem.stopAutoSave()
         engineRef.current = null
       }
     }
@@ -102,8 +125,22 @@ export function GameCanvas({ onEngineReady }: GameCanvasProps) {
   // 当引擎就绪时通知父组件
   useEffect(() => {
     if (ready && engineRef.current) {
-      const { stateManager, buildingSystem, mapSystem } = engineRef.current
-      onEngineReady({ stateManager, buildingSystem, mapSystem })
+      const {
+        stateManager,
+        buildingSystem,
+        mapSystem,
+        roadSystem,
+        economySystem,
+        saveSystem,
+      } = engineRef.current
+      onEngineReady({
+        stateManager,
+        buildingSystem,
+        mapSystem,
+        roadSystem,
+        economySystem,
+        saveSystem,
+      })
     }
   }, [ready, onEngineReady])
 

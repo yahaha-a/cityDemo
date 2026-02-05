@@ -3,20 +3,55 @@ import {
   type GameMap,
   type Tile,
   type StateListener,
+  type Camera,
+  type TimeState,
+  type EconomyState,
   TileType,
   ToolType,
+  TimeSpeed,
 } from 'shared/game-types'
-import { MAP_WIDTH, MAP_HEIGHT, INITIAL_MONEY } from '../constants'
+import {
+  MAP_WIDTH,
+  MAP_HEIGHT,
+  INITIAL_MONEY,
+  CAMERA_MIN_ZOOM,
+  CAMERA_MAX_ZOOM,
+} from '../constants'
 
 function createEmptyMap(): GameMap {
   const tiles: Tile[][] = []
   for (let y = 0; y < MAP_HEIGHT; y++) {
     tiles[y] = []
     for (let x = 0; x < MAP_WIDTH; x++) {
-      tiles[y][x] = { type: TileType.Empty, x, y, level: 0 }
+      tiles[y][x] = { type: TileType.Empty, x, y, level: 0, connected: false }
     }
   }
   return { width: MAP_WIDTH, height: MAP_HEIGHT, tiles }
+}
+
+function createInitialCamera(): Camera {
+  return {
+    x: 0,
+    y: 0,
+    zoom: 1,
+  }
+}
+
+function createInitialTime(): TimeState {
+  return {
+    day: 1,
+    speed: TimeSpeed.Normal,
+    tickAccumulator: 0,
+  }
+}
+
+function createInitialEconomy(): EconomyState {
+  return {
+    income: 0,
+    expenses: 0,
+    population: 0,
+    lastDayRevenue: 0,
+  }
 }
 
 function createInitialState(): GameState {
@@ -25,6 +60,9 @@ function createInitialState(): GameState {
     money: INITIAL_MONEY,
     currentTool: ToolType.Select,
     hoveredTile: null,
+    camera: createInitialCamera(),
+    time: createInitialTime(),
+    economy: createInitialEconomy(),
   }
 }
 
@@ -79,7 +117,43 @@ export class GameStateManager {
   }
 
   setTileAt(x: number, y: number, type: TileType, level = 1): void {
-    this.state.map.tiles[y][x] = { type, x, y, level }
+    this.state.map.tiles[y][x] = { type, x, y, level, connected: false }
+    this.notify()
+  }
+
+  /** 设置瓦片但不触发通知（用于批量操作，调用方自行 notify） */
+  setTileAtSilent(x: number, y: number, type: TileType, level = 1): void {
+    this.state.map.tiles[y][x] = { type, x, y, level, connected: false }
+  }
+
+  /** 更新瓦片的连接状态 */
+  setTileConnected(x: number, y: number, connected: boolean): void {
+    const tile = this.state.map.tiles[y]?.[x]
+    if (tile && tile.connected !== connected) {
+      tile.connected = connected
+      this.notify()
+    }
+  }
+
+  /** 批量更新瓦片连接状态（接受坐标数组，避免字符串解析） */
+  updateConnections(
+    updates: Array<{ x: number; y: number; connected: boolean }>
+  ): void {
+    let changed = false
+    for (const { x, y, connected } of updates) {
+      const tile = this.state.map.tiles[y]?.[x]
+      if (tile && tile.connected !== connected) {
+        tile.connected = connected
+        changed = true
+      }
+    }
+    if (changed) {
+      this.notify()
+    }
+  }
+
+  /** 手动触发通知（用于批量操作后） */
+  forceNotify(): void {
     this.notify()
   }
 
@@ -91,12 +165,83 @@ export class GameStateManager {
   }
 
   addMoney(amount: number): void {
-    this.state.money += amount
+    this.state.money = Math.max(0, this.state.money + amount)
     this.notify()
   }
 
   getTileAt(x: number, y: number): Tile | null {
     if (x < 0 || x >= MAP_WIDTH || y < 0 || y >= MAP_HEIGHT) return null
     return this.state.map.tiles[y][x]
+  }
+
+  // 相机控制方法（静默更新，不触发 React 重渲染）
+  panCamera(dx: number, dy: number): void {
+    const cam = this.state.camera
+    this.state.camera = {
+      x: cam.x + dx,
+      y: cam.y + dy,
+      zoom: cam.zoom,
+    }
+  }
+
+  setZoom(zoom: number, pivotX?: number, pivotY?: number): void {
+    const { camera } = this.state
+    const newZoom = Math.max(CAMERA_MIN_ZOOM, Math.min(CAMERA_MAX_ZOOM, zoom))
+    if (newZoom === camera.zoom) return
+
+    if (pivotX !== undefined && pivotY !== undefined) {
+      const zoomRatio = newZoom / camera.zoom
+      const newX = pivotX - (pivotX - camera.x) * zoomRatio
+      const newY = pivotY - (pivotY - camera.y) * zoomRatio
+      this.state.camera = { x: newX, y: newY, zoom: newZoom }
+    } else {
+      this.state.camera = { ...camera, zoom: newZoom }
+    }
+  }
+
+  getCamera(): Camera {
+    return this.state.camera
+  }
+
+  resetCamera(): void {
+    this.state.camera = createInitialCamera()
+  }
+
+  // 时间控制方法
+  setTimeSpeed(speed: TimeSpeed): void {
+    if (this.state.time.speed === speed) return
+    this.state.time = { ...this.state.time, speed }
+    this.notify()
+  }
+
+  advanceDay(): void {
+    this.state.time = {
+      ...this.state.time,
+      day: this.state.time.day + 1,
+      tickAccumulator: 0,
+    }
+    this.notify()
+  }
+
+  setTickAccumulator(value: number): void {
+    this.state.time.tickAccumulator = value
+  }
+
+  // 经济状态更新
+  updateEconomy(economy: Partial<EconomyState>): void {
+    this.state.economy = { ...this.state.economy, ...economy }
+    this.notify()
+  }
+
+  /** 从完整状态恢复（用于存档加载） */
+  loadState(state: GameState): void {
+    this.state = state
+    this.notify()
+  }
+
+  /** 重置游戏 */
+  resetGame(): void {
+    this.state = createInitialState()
+    this.notify()
   }
 }

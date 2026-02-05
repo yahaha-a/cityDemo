@@ -2,6 +2,8 @@ import { useState, useCallback } from 'react'
 import { GameCanvas, type GameEngine } from './game-canvas'
 import { Toolbar } from './toolbar'
 import { InfoPanel } from './info-panel'
+import { TimeControl } from './time-control'
+import { GameMenu } from './game-menu'
 import { useGameState } from '../hooks/use-game-state'
 import type { ToolType } from 'shared/game-types'
 
@@ -15,6 +17,10 @@ function GameUI({ engine }: { engine: GameEngine }) {
     [engine.stateManager]
   )
 
+  const handleNewGame = useCallback(() => {
+    engine.stateManager.resetGame()
+  }, [engine.stateManager])
+
   return (
     <>
       <Toolbar
@@ -22,7 +28,13 @@ function GameUI({ engine }: { engine: GameEngine }) {
         money={state.money}
         onSelectTool={handleSelectTool}
       />
-      <InfoPanel mapSystem={engine.mapSystem} state={state} />
+      <InfoPanel
+        mapSystem={engine.mapSystem}
+        roadSystem={engine.roadSystem}
+        state={state}
+      />
+      <TimeControl state={state} stateManager={engine.stateManager} />
+      <GameMenu onNewGame={handleNewGame} saveSystem={engine.saveSystem} />
     </>
   )
 }
