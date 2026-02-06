@@ -34,14 +34,14 @@ export default {
     artifactName,
     icon: `${resources}/build/icons/icon.icns`,
     category: 'public.app-category.utilities',
-    target: ['zip', 'dmg', 'dir'],
+    target: ['zip', 'dmg'],
   },
 
   linux: {
     artifactName,
     category: 'Utilities',
     synopsis: description,
-    target: ['AppImage', 'deb', 'pacman', 'freebsd', 'rpm'],
+    target: ['AppImage', 'deb'],
   },
 
   win: {
