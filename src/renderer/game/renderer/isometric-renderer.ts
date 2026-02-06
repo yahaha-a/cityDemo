@@ -470,5 +470,4 @@ export class IsometricRenderer {
     this.ctx.closePath()
     this.ctx.fill()
   }
-
 }

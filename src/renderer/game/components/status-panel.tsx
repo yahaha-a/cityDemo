@@ -2,11 +2,7 @@ import { memo } from 'react'
 import { POLICY_TEMPLATES, TECH_TREE } from '../constants'
 import { useEngine } from '../context/game-engine-context'
 import { usePolicies, useTechState } from '../hooks/use-game-selector'
-import {
-  GamePanel,
-  GamePanelHeader,
-  GamePanelDivider,
-} from './ui/game-panel'
+import { GamePanel, GamePanelHeader, GamePanelDivider } from './ui/game-panel'
 import { ProgressBar } from './ui/progress-bar'
 import { ScrollText, FlaskConical, BookOpen } from 'lucide-react'
 
@@ -25,10 +21,7 @@ export const StatusPanel = memo(function StatusPanel() {
   const progress = engine.techSystem.getResearchProgress()
 
   return (
-    <GamePanel
-      className="h-full rounded-none overflow-y-auto"
-      size="sm"
-    >
+    <GamePanel className="h-full rounded-none overflow-y-auto" size="sm">
       {/* 生效政策 */}
       <GamePanelHeader className="text-xs">
         <span className="flex items-center gap-1.5">
@@ -65,7 +58,7 @@ export const StatusPanel = memo(function StatusPanel() {
       {currentNode ? (
         <div className="space-y-1">
           <div className="text-xs text-[var(--game-text)] flex items-center gap-1">
-            <BookOpen size={12} className="text-[var(--game-purple)]" />
+            <BookOpen className="text-[var(--game-purple)]" size={12} />
             <span>{currentNode.name}</span>
           </div>
           <ProgressBar

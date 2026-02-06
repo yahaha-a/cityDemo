@@ -3,12 +3,7 @@ import { TimeSpeed } from 'shared/game-types'
 import { DAY_DURATION_MS } from '../constants'
 import { useEngine } from '../context/game-engine-context'
 import { useTimeState } from '../hooks/use-game-selector'
-import {
-  Pause,
-  Play,
-  FastForward,
-  Menu,
-} from 'lucide-react'
+import { Pause, Play, FastForward, Menu } from 'lucide-react'
 
 const SPEED_OPTIONS = [
   { speed: TimeSpeed.Paused, icon: Pause, title: '暂停' },

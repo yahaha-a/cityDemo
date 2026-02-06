@@ -23,7 +23,7 @@ import {
 import { GameButton } from './ui/game-button'
 import { ModalOverlay } from './ui/modal-overlay'
 
-function GameUI() {
+function GameUI({ onReturnToStart }: { onReturnToStart?: () => void }) {
   const engine = useEngine()
   const [activeModal, setActiveModal] = useState<ModalType>(null)
   const [menuOpen, setMenuOpen] = useState(false)
@@ -39,7 +39,7 @@ function GameUI() {
     [engine.stateManager]
   )
 
-  const handleNewGame = useCallback(() => {
+  const handleResetGame = useCallback(() => {
     engine.stateManager.resetGame()
   }, [engine.stateManager])
 
@@ -86,9 +86,7 @@ function GameUI() {
 
       {/* 弹窗面板 */}
       {activeModal && (
-        <ModalOverlay
-          onClick={() => setActiveModal(null)}
-        >
+        <ModalOverlay onClick={() => setActiveModal(null)}>
           <div onClick={e => e.stopPropagation()} onKeyDown={() => {}}>
             {activeModal === 'milestones' && <MilestonePanel />}
             {activeModal === 'policy' && <PolicyPanel />}
@@ -118,7 +116,8 @@ function GameUI() {
       <GameMenu
         isOpen={menuOpen}
         onClose={() => setMenuOpen(false)}
-        onNewGame={handleNewGame}
+        onResetGame={handleResetGame}
+        onReturnToStart={onReturnToStart}
       />
 
       {/* 危机弹窗 */}
@@ -143,7 +142,7 @@ function GameUI() {
             </div>
             <GameButton
               intent="primary"
-              onClick={handleNewGame}
+              onClick={handleResetGame}
               variant="action"
             >
               重新开始
@@ -155,12 +154,23 @@ function GameUI() {
   )
 }
 
-export function GameLayout() {
+interface GameLayoutProps {
+  loadSlotId?: string
+  onReturnToStart?: () => void
+}
+
+export function GameLayout({ loadSlotId, onReturnToStart }: GameLayoutProps) {
   const [engine, setEngine] = useState<GameEngine | null>(null)
 
-  const handleEngineReady = useCallback((eng: GameEngine) => {
-    setEngine(eng)
-  }, [])
+  const handleEngineReady = useCallback(
+    (eng: GameEngine) => {
+      if (loadSlotId) {
+        eng.saveSystem.loadFromSlot(loadSlotId)
+      }
+      setEngine(eng)
+    },
+    [loadSlotId]
+  )
 
   return (
     <div className="relative w-screen h-screen overflow-hidden bg-[var(--game-parchment-dark)]">
@@ -188,7 +198,7 @@ export function GameLayout() {
       {engine && (
         <GameEngineProvider engine={engine}>
           <GameErrorBoundary>
-            <GameUI />
+            <GameUI onReturnToStart={onReturnToStart} />
           </GameErrorBoundary>
         </GameEngineProvider>
       )}

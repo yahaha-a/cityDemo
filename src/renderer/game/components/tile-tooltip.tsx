@@ -8,11 +8,7 @@ import {
   MAX_BUILDING_LEVEL,
 } from '../constants'
 import { TileType, TerrainType } from 'shared/game-types'
-import {
-  useHoveredTile,
-  useMap,
-  useEconomy,
-} from '../hooks/use-game-selector'
+import { useHoveredTile, useMap, useEconomy } from '../hooks/use-game-selector'
 
 function terrainEffectText(terrain: TerrainType): string | null {
   switch (terrain) {
@@ -102,9 +98,8 @@ export function TileTooltip() {
             <div className="text-[var(--game-text-muted)] text-[10px]">
               升级费用: $
               {Math.ceil(
-                (BUILDING_COSTS[
-                  tileData.type as keyof typeof BUILDING_COSTS
-                ] ?? 0) *
+                (BUILDING_COSTS[tileData.type as keyof typeof BUILDING_COSTS] ??
+                  0) *
                   (Number.isFinite(
                     TERRAIN_BUILD_COST_MULTIPLIER[tileData.terrain]
                   )

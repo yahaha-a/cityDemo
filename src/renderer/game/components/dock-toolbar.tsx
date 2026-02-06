@@ -182,9 +182,7 @@ export const DockToolbar = memo(function DockToolbar({
     [researchedTechs]
   )
 
-  const isFacilityToolActive = FACILITY_TOOLS.some(
-    f => f.type === currentTool
-  )
+  const isFacilityToolActive = FACILITY_TOOLS.some(f => f.type === currentTool)
 
   return (
     <div className="absolute bottom-3 left-1/2 -translate-x-1/2 z-20 flex items-end gap-1 px-3 py-2 bg-[var(--game-wood)] rounded-[var(--game-radius-lg)] border-2 border-[var(--game-wood-dark)] shadow-[0_-2px_12px_oklch(0.2_0.05_55/0.3)] animate-[slideUp_0.3s_ease-out]">
