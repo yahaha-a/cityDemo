@@ -1,7 +1,9 @@
 import type { GameState, SaveData } from 'shared/game-types'
+import { DemandLevel, TerrainType } from 'shared/game-types'
 import type { GameStateManager } from '../engine/game-state'
+import { EVENT_BASE_COOLDOWN, MAP_WIDTH, MAP_HEIGHT } from '../constants'
 
-const SAVE_VERSION = '1.0.0'
+const SAVE_VERSION = '1.2.0'
 const STORAGE_KEY = 'city-demo-saves'
 const MAX_SAVE_SLOTS = 10
 const AUTO_SAVE_INTERVAL = 5 * 60 * 1000 // 5 分钟
@@ -109,20 +111,91 @@ export class SaveSystem {
       const saveData = saves[slotId]
       if (!saveData) return false
 
-      // 版本校验
-      if (saveData.version !== SAVE_VERSION) {
-        console.warn(
-          `Save version mismatch: expected ${SAVE_VERSION}, got ${saveData.version}`
-        )
-        return false
-      }
+      // 尝试迁移旧版本存档
+      const migrated = this.migrateSaveData(saveData)
 
-      this.applySaveData(saveData)
+      this.applySaveData(migrated)
       return true
     } catch (error) {
       console.error('Load failed:', error)
       return false
     }
+  }
+
+  /**
+   * 迁移旧版本存档数据
+   */
+  private migrateSaveData(saveData: SaveData): SaveData {
+    if (saveData.version === SAVE_VERSION) return saveData
+
+    const gs = saveData.gameState as Record<string, unknown>
+
+    // v1.0.0 → v1.1.0: 添加供需经济字段
+    if (gs.populationFloat === undefined) {
+      gs.populationFloat = 0
+    }
+
+    const economy = gs.economy as Record<string, unknown>
+    if (economy && economy.satisfaction === undefined) {
+      economy.satisfaction = 75
+      economy.populationCapacity = 0
+      economy.resources = {
+        labor: { supply: 0, demand: 0, ratio: 1 },
+        goods: { supply: 0, demand: 0, ratio: 1 },
+        services: { supply: 0, demand: 0, ratio: 1 },
+      }
+      economy.demandIndicators = {
+        residential: DemandLevel.Balanced,
+        commercial: DemandLevel.Balanced,
+        industrial: DemandLevel.Balanced,
+      }
+      economy.efficiencyByType = {
+        residential: 1,
+        commercial: 1,
+        industrial: 1,
+      }
+    }
+
+    // v1.1.0 → v1.2.0: 添加地形、事件、里程碑字段
+    // 为所有瓦片添加 terrain 属性
+    const map = gs.map as { tiles: Array<Array<Record<string, unknown>>> }
+    if (map?.tiles) {
+      for (let y = 0; y < MAP_HEIGHT && y < map.tiles.length; y++) {
+        for (let x = 0; x < MAP_WIDTH && x < map.tiles[y].length; x++) {
+          const tile = map.tiles[y][x]
+          if (tile.terrain === undefined) {
+            tile.terrain = TerrainType.Plain
+          }
+        }
+      }
+    }
+
+    if (gs.mapSeed === undefined) {
+      gs.mapSeed = Date.now()
+    }
+
+    if (gs.events === undefined) {
+      gs.events = {
+        activeEvents: [],
+        eventCooldown: EVENT_BASE_COOLDOWN,
+        eventHistory: [],
+        unlockedEventIds: [],
+      }
+    }
+
+    if (gs.milestones === undefined) {
+      gs.milestones = {
+        achieved: [],
+        satisfactionStreak: 0,
+        cumulativeIncome: 0,
+        upgradeLv3Unlocked: false,
+        pendingRewards: [],
+      }
+    }
+
+    saveData.version = SAVE_VERSION
+    console.log('[SaveSystem] Migrated save data to', SAVE_VERSION)
+    return saveData
   }
 
   /**

@@ -6,6 +6,8 @@ import { BuildingSystem } from '../systems/building-system'
 import { MapSystem } from '../systems/map-system'
 import { RoadSystem } from '../systems/road-system'
 import { EconomySystem } from '../systems/economy-system'
+import { EventSystem } from '../systems/event-system'
+import { MilestoneSystem } from '../systems/milestone-system'
 import { SaveSystem } from '../systems/save-system'
 import { InputHandler } from '../input/input-handler'
 
@@ -15,6 +17,8 @@ export interface GameEngine {
   mapSystem: MapSystem
   roadSystem: RoadSystem
   economySystem: EconomySystem
+  eventSystem: EventSystem
+  milestoneSystem: MilestoneSystem
   saveSystem: SaveSystem
 }
 
@@ -33,6 +37,8 @@ export function GameCanvas({ onEngineReady }: GameCanvasProps) {
     mapSystem: MapSystem
     roadSystem: RoadSystem
     economySystem: EconomySystem
+    eventSystem: EventSystem
+    milestoneSystem: MilestoneSystem
     saveSystem: SaveSystem
   } | null>(null)
   const [ready, setReady] = useState(false)
@@ -70,11 +76,26 @@ export function GameCanvas({ onEngineReady }: GameCanvasProps) {
       const roadSystem = new RoadSystem(stateManager)
       const economySystem = new EconomySystem(stateManager)
       const mapSystem = new MapSystem(stateManager)
+      const eventSystem = new EventSystem(stateManager)
       const saveSystem = new SaveSystem(stateManager)
 
+      // 注入事件系统到经济系统
+      economySystem.setEventSystem(eventSystem)
+
       // 创建有依赖的系统
+      const milestoneSystem = new MilestoneSystem(
+        stateManager,
+        eventSystem,
+        mapSystem
+      )
       const buildingSystem = new BuildingSystem(stateManager, roadSystem)
-      const gameLoop = new GameLoop(renderer, stateManager, economySystem)
+      const gameLoop = new GameLoop(
+        renderer,
+        stateManager,
+        economySystem,
+        eventSystem,
+        milestoneSystem
+      )
 
       const inputHandler = new InputHandler(
         canvas,
@@ -92,6 +113,8 @@ export function GameCanvas({ onEngineReady }: GameCanvasProps) {
         mapSystem,
         roadSystem,
         economySystem,
+        eventSystem,
+        milestoneSystem,
         saveSystem,
       }
 
@@ -131,6 +154,8 @@ export function GameCanvas({ onEngineReady }: GameCanvasProps) {
         mapSystem,
         roadSystem,
         economySystem,
+        eventSystem,
+        milestoneSystem,
         saveSystem,
       } = engineRef.current
       onEngineReady({
@@ -139,6 +164,8 @@ export function GameCanvas({ onEngineReady }: GameCanvasProps) {
         mapSystem,
         roadSystem,
         economySystem,
+        eventSystem,
+        milestoneSystem,
         saveSystem,
       })
     }

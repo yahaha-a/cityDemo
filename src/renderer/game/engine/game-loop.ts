@@ -2,6 +2,8 @@ import { TimeSpeed } from 'shared/game-types'
 import type { GameStateManager } from './game-state'
 import type { IsometricRenderer } from '../renderer/isometric-renderer'
 import type { EconomySystem } from '../systems/economy-system'
+import type { EventSystem } from '../systems/event-system'
+import type { MilestoneSystem } from '../systems/milestone-system'
 import { DAY_DURATION_MS, TIME_SPEED_MULTIPLIERS } from '../constants'
 
 /**
@@ -11,6 +13,8 @@ export class GameLoop {
   private renderer: IsometricRenderer
   private stateManager: GameStateManager
   private economySystem: EconomySystem
+  private eventSystem: EventSystem
+  private milestoneSystem: MilestoneSystem
   private animFrameId = 0
   private running = false
   private lastTimestamp = 0
@@ -18,11 +22,15 @@ export class GameLoop {
   constructor(
     renderer: IsometricRenderer,
     stateManager: GameStateManager,
-    economySystem: EconomySystem
+    economySystem: EconomySystem,
+    eventSystem: EventSystem,
+    milestoneSystem: MilestoneSystem
   ) {
     this.renderer = renderer
     this.stateManager = stateManager
     this.economySystem = economySystem
+    this.eventSystem = eventSystem
+    this.milestoneSystem = milestoneSystem
   }
 
   start(): void {
@@ -72,7 +80,10 @@ export class GameLoop {
     while (remaining >= DAY_DURATION_MS && daysAdvanced < maxDays) {
       remaining -= DAY_DURATION_MS
       this.stateManager.advanceDay()
+      // 每日顺序: 事件 → 经济 → 里程碑
+      this.eventSystem.processDailyEvents()
       this.economySystem.processDailyEconomy()
+      this.milestoneSystem.processDailyMilestones()
       daysAdvanced++
     }
 

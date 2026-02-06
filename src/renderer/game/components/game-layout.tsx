@@ -4,6 +4,8 @@ import { Toolbar } from './toolbar'
 import { InfoPanel } from './info-panel'
 import { TimeControl } from './time-control'
 import { GameMenu } from './game-menu'
+import { MilestonePanel } from './milestone-panel'
+import { EventToast } from './event-toast'
 import { useGameState } from '../hooks/use-game-state'
 import type { ToolType } from 'shared/game-types'
 
@@ -25,6 +27,7 @@ function GameUI({ engine }: { engine: GameEngine }) {
     <>
       <Toolbar
         currentTool={state.currentTool}
+        demandIndicators={state.economy.demandIndicators}
         money={state.money}
         onSelectTool={handleSelectTool}
       />
@@ -33,6 +36,8 @@ function GameUI({ engine }: { engine: GameEngine }) {
         roadSystem={engine.roadSystem}
         state={state}
       />
+      <MilestonePanel state={state} />
+      <EventToast state={state} />
       <TimeControl state={state} stateManager={engine.stateManager} />
       <GameMenu onNewGame={handleNewGame} saveSystem={engine.saveSystem} />
     </>

@@ -6,6 +6,8 @@ import { BuildingSystem } from '../systems/building-system'
 import { MapSystem } from '../systems/map-system'
 import { RoadSystem } from '../systems/road-system'
 import { EconomySystem } from '../systems/economy-system'
+import { EventSystem } from '../systems/event-system'
+import { MilestoneSystem } from '../systems/milestone-system'
 import { InputHandler } from '../input/input-handler'
 
 export interface GameEngine {
@@ -14,6 +16,8 @@ export interface GameEngine {
   mapSystem: MapSystem
   roadSystem: RoadSystem
   economySystem: EconomySystem
+  eventSystem: EventSystem
+  milestoneSystem: MilestoneSystem
 }
 
 /**
@@ -23,17 +27,6 @@ export interface GameEngine {
 export function useGameEngine(
   canvasRef: React.RefObject<HTMLCanvasElement | null>
 ): GameEngine {
-  const engineRef = useRef<{
-    stateManager: GameStateManager
-    gameLoop: GameLoop
-    renderer: IsometricRenderer
-    buildingSystem: BuildingSystem
-    mapSystem: MapSystem
-    roadSystem: RoadSystem
-    economySystem: EconomySystem
-    inputHandler: InputHandler
-  } | null>(null)
-
   const stateManagerRef = useRef<GameStateManager>(new GameStateManager())
   const roadSystemRef = useRef<RoadSystem>(
     new RoadSystem(stateManagerRef.current)
@@ -41,10 +34,23 @@ export function useGameEngine(
   const economySystemRef = useRef<EconomySystem>(
     new EconomySystem(stateManagerRef.current)
   )
+  const eventSystemRef = useRef<EventSystem>(
+    new EventSystem(stateManagerRef.current)
+  )
+  const mapSystemRef = useRef<MapSystem>(new MapSystem(stateManagerRef.current))
+  const milestoneSystemRef = useRef<MilestoneSystem>(
+    new MilestoneSystem(
+      stateManagerRef.current,
+      eventSystemRef.current,
+      mapSystemRef.current
+    )
+  )
   const buildingSystemRef = useRef<BuildingSystem>(
     new BuildingSystem(stateManagerRef.current, roadSystemRef.current)
   )
-  const mapSystemRef = useRef<MapSystem>(new MapSystem(stateManagerRef.current))
+
+  // 注入事件系统
+  economySystemRef.current.setEventSystem(eventSystemRef.current)
 
   useEffect(() => {
     const canvas = canvasRef.current
@@ -52,28 +58,23 @@ export function useGameEngine(
 
     const stateManager = stateManagerRef.current
     const economySystem = economySystemRef.current
+    const eventSystem = eventSystemRef.current
+    const milestoneSystem = milestoneSystemRef.current
     const renderer = new IsometricRenderer(canvas)
-    const gameLoop = new GameLoop(renderer, stateManager, economySystem)
+    const gameLoop = new GameLoop(
+      renderer,
+      stateManager,
+      economySystem,
+      eventSystem,
+      milestoneSystem
+    )
     const buildingSystem = buildingSystemRef.current
-    const mapSystem = mapSystemRef.current
-    const roadSystem = roadSystemRef.current
     const inputHandler = new InputHandler(
       canvas,
       stateManager,
       buildingSystem,
       renderer
     )
-
-    engineRef.current = {
-      stateManager,
-      gameLoop,
-      renderer,
-      buildingSystem,
-      mapSystem,
-      roadSystem,
-      economySystem,
-      inputHandler,
-    }
 
     // 处理窗口大小调整
     const handleResize = (): void => {
@@ -93,7 +94,6 @@ export function useGameEngine(
       gameLoop.stop()
       inputHandler.detach()
       window.removeEventListener('resize', handleResize)
-      engineRef.current = null
     }
   }, [canvasRef])
 
@@ -103,5 +103,7 @@ export function useGameEngine(
     mapSystem: mapSystemRef.current,
     roadSystem: roadSystemRef.current,
     economySystem: economySystemRef.current,
+    eventSystem: eventSystemRef.current,
+    milestoneSystem: milestoneSystemRef.current,
   }
 }
