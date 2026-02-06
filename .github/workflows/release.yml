@@ -70,9 +70,9 @@ jobs:
         if: matrix.os == 'ubuntu-latest'
         run: sudo apt autoremove
 
-      - name: Install libarchive rpm on Linux
+      - name: Install libarchive on Linux
         if: matrix.os == 'ubuntu-latest'
-        run: sudo apt-get install libarchive-tools rpm
+        run: sudo apt-get install libarchive-tools
 
       - name: Build Electron app
         uses: daltonmenezes/action-electron-builder@v1.0.1
@@ -86,7 +86,12 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: build-${{ matrix.os }}
-          path: dist/v${{ steps.version.outputs.version }}/
+          path: |
+            dist/v${{ steps.version.outputs.version }}/*.exe
+            dist/v${{ steps.version.outputs.version }}/*.dmg
+            dist/v${{ steps.version.outputs.version }}/*.zip
+            dist/v${{ steps.version.outputs.version }}/*.AppImage
+            dist/v${{ steps.version.outputs.version }}/*.deb
           if-no-files-found: warn
 
   release:
