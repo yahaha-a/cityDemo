@@ -1,14 +1,17 @@
 import { useState, useCallback, useRef, useEffect } from 'react'
-import type { SaveSystem, SaveSlot } from '../systems/save-system'
+import type { SaveSlot } from '../systems/save-system'
+import { useEngine } from '../context/game-engine-context'
+import { GameButton } from './ui/game-button'
+import { ModalOverlay } from './ui/modal-overlay'
 
 interface GameMenuProps {
-  saveSystem: SaveSystem
   onNewGame: () => void
 }
 
 type MenuView = 'main' | 'save' | 'load'
 
-export function GameMenu({ saveSystem, onNewGame }: GameMenuProps) {
+export function GameMenu({ onNewGame }: GameMenuProps) {
+  const { saveSystem } = useEngine()
   const [isOpen, setIsOpen] = useState(false)
   const [view, setView] = useState<MenuView>('main')
   const [slots, setSlots] = useState<SaveSlot[]>([])
@@ -103,13 +106,14 @@ export function GameMenu({ saveSystem, onNewGame }: GameMenuProps) {
   return (
     <>
       {/* 菜单按钮 */}
-      <button
-        className="absolute top-4 left-1/2 -translate-x-1/2 bg-gray-900/90 text-gray-300 px-4 py-1.5 rounded-lg border border-gray-700 text-sm hover:bg-gray-800 transition-colors"
+      <GameButton
+        className="absolute top-4 left-1/2 -translate-x-1/2 rounded-lg"
+        intent="default"
         onClick={openMenu}
-        type="button"
+        variant="action"
       >
         菜单
-      </button>
+      </GameButton>
 
       {/* 消息提示 */}
       {message && (
@@ -122,11 +126,9 @@ export function GameMenu({ saveSystem, onNewGame }: GameMenuProps) {
       {isOpen && (
         <div className="fixed inset-0 flex items-center justify-center z-40">
           {/* 背景遮罩 */}
-          <button
-            aria-label="关闭菜单"
-            className="absolute inset-0 bg-black/60 cursor-default border-none"
+          <ModalOverlay
+            className="fixed z-auto cursor-default"
             onClick={closeMenu}
-            type="button"
           />
 
           {/* 菜单面板 */}
@@ -170,14 +172,15 @@ export function GameMenu({ saveSystem, onNewGame }: GameMenuProps) {
                       type="text"
                       value={newSaveName}
                     />
-                    <button
-                      className="px-4 py-2 bg-blue-600 text-white text-sm rounded hover:bg-blue-500 disabled:opacity-50"
+                    <GameButton
+                      className="text-sm"
                       disabled={slots.length >= saveSystem.getMaxSlots()}
+                      intent="primary"
                       onClick={handleCreateSave}
-                      type="button"
+                      variant="action"
                     >
                       保存
-                    </button>
+                    </GameButton>
                   </div>
                   <div className="text-xs text-gray-500 mt-1">
                     已用 {slots.length} / {saveSystem.getMaxSlots()} 个存档位
@@ -202,13 +205,14 @@ export function GameMenu({ saveSystem, onNewGame }: GameMenuProps) {
                   )}
                 </div>
 
-                <button
-                  className="w-full mt-3 px-4 py-2 bg-gray-700 text-gray-300 text-sm rounded hover:bg-gray-600"
+                <GameButton
+                  className="w-full mt-3"
+                  intent="secondary"
                   onClick={() => setView('main')}
-                  type="button"
+                  variant="action"
                 >
                   返回
-                </button>
+                </GameButton>
               </div>
             )}
 
@@ -232,13 +236,14 @@ export function GameMenu({ saveSystem, onNewGame }: GameMenuProps) {
                   )}
                 </div>
 
-                <button
-                  className="w-full mt-3 px-4 py-2 bg-gray-700 text-gray-300 text-sm rounded hover:bg-gray-600"
+                <GameButton
+                  className="w-full mt-3"
+                  intent="secondary"
                   onClick={() => setView('main')}
-                  type="button"
+                  variant="action"
                 >
                   返回
-                </button>
+                </GameButton>
               </div>
             )}
           </div>
@@ -256,13 +261,9 @@ function MenuButton({
   onClick: () => void
 }) {
   return (
-    <button
-      className="w-full px-4 py-2.5 text-left text-sm text-gray-300 hover:bg-gray-800 rounded transition-colors"
-      onClick={onClick}
-      type="button"
-    >
+    <GameButton onClick={onClick} variant="menu">
       {children}
-    </button>
+    </GameButton>
   )
 }
 
@@ -296,21 +297,23 @@ function SaveSlotItem({
         </div>
       </div>
       <div className="flex gap-2">
-        <button
-          className="px-3 py-1.5 bg-blue-600 text-white text-xs rounded hover:bg-blue-500"
+        <GameButton
+          className="px-3 py-1.5 text-xs"
+          intent="primary"
           onClick={onSelect}
-          type="button"
+          variant="action"
         >
           {selectLabel}
-        </button>
+        </GameButton>
         {!isAutoSave && (
-          <button
-            className="px-3 py-1.5 bg-red-600/80 text-white text-xs rounded hover:bg-red-500"
+          <GameButton
+            className="px-3 py-1.5 text-xs"
+            intent="danger"
             onClick={onDelete}
-            type="button"
+            variant="action"
           >
             删除
-          </button>
+          </GameButton>
         )}
       </div>
     </div>

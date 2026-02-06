@@ -1,17 +1,12 @@
-import type { GameState } from 'shared/game-types'
-import type { CrisisSystem } from '../systems/crisis-system'
-
-interface CrisisDialogProps {
-  state: GameState
-  crisisSystem: CrisisSystem
-}
-
-const SEVERITY_COLORS: Record<string, string> = {
-  minor: 'text-yellow-400',
-  moderate: 'text-orange-400',
-  major: 'text-red-400',
-  catastrophic: 'text-red-600',
-}
+import type { CrisisEffect } from 'shared/game-types'
+import { useEngine } from '../context/game-engine-context'
+import {
+  useChallenge,
+  useMoney,
+  useTechState,
+} from '../hooks/use-game-selector'
+import { ModalOverlay } from './ui/modal-overlay'
+import { SEVERITY_COLORS } from './ui/theme'
 
 const SEVERITY_LABELS: Record<string, string> = {
   minor: '轻微',
@@ -20,16 +15,21 @@ const SEVERITY_LABELS: Record<string, string> = {
   catastrophic: '灾难',
 }
 
-export function CrisisDialog({ state, crisisSystem }: CrisisDialogProps) {
-  const crisis = state.challenge.pendingCrisis
+export function CrisisDialog() {
+  const engine = useEngine()
+  const challenge = useChallenge()
+  const money = useMoney()
+  const tech = useTechState()
+
+  const crisis = challenge.pendingCrisis
   if (!crisis) return null
 
   const handleOption = (optionId: string) => {
-    crisisSystem.resolveCrisis(optionId)
+    engine.crisisSystem.resolveCrisis(optionId)
   }
 
   return (
-    <div className="absolute inset-0 bg-black/60 flex items-center justify-center z-50">
+    <ModalOverlay className="z-50">
       <div className="bg-gray-900 rounded-lg border border-gray-600 p-4 max-w-[400px] w-full mx-4 shadow-2xl">
         {/* 标题 */}
         <div className="flex items-center gap-2 mb-3">
@@ -56,13 +56,13 @@ export function CrisisDialog({ state, crisisSystem }: CrisisDialogProps) {
         {/* 选项 */}
         <div className="space-y-2">
           {crisis.options.map(option => {
-            const canAfford = state.money >= option.cost
+            const canAfford = money >= option.cost
             const hasFacility =
               !option.requirements?.facility ||
-              checkHasFacility(state, option.requirements.facility)
+              engine.crisisSystem.hasFacility(option.requirements.facility)
             const hasTech =
               !option.requirements?.tech ||
-              state.tech.researched.includes(option.requirements.tech)
+              tech.researched.includes(option.requirements.tech)
             const canChoose = canAfford && hasFacility && hasTech
 
             return (
@@ -116,28 +116,11 @@ export function CrisisDialog({ state, crisisSystem }: CrisisDialogProps) {
           })}
         </div>
       </div>
-    </div>
+    </ModalOverlay>
   )
 }
 
-function checkHasFacility(
-  state: GameState,
-  facilityType: import('shared/game-types').TileType
-): boolean {
-  const { map } = state
-  for (let y = 0; y < map.height; y++) {
-    for (let x = 0; x < map.width; x++) {
-      if (map.tiles[y][x].type === facilityType && map.tiles[y][x].connected) {
-        return true
-      }
-    }
-  }
-  return false
-}
-
-function formatEffect(
-  effect: import('shared/game-types').CrisisEffect
-): string {
+function formatEffect(effect: CrisisEffect): string {
   switch (effect.type) {
     case 'satisfaction':
       return `满意度 ${effect.value > 0 ? '+' : ''}${effect.value}`

@@ -1,4 +1,3 @@
-import type { GameState } from 'shared/game-types'
 import {
   TILE_LABELS,
   TERRAIN_LABELS,
@@ -8,21 +7,22 @@ import {
   MAX_BUILDING_LEVEL,
 } from '../constants'
 import { TileType, TerrainType, DemandLevel } from 'shared/game-types'
-import type { MapSystem } from '../systems/map-system'
-import type { RoadSystem } from '../systems/road-system'
-
-interface InfoPanelProps {
-  state: GameState
-  mapSystem: MapSystem
-  roadSystem: RoadSystem
-}
-
-const DEMAND_COLORS: Record<DemandLevel, string> = {
-  [DemandLevel.Low]: 'text-green-400',
-  [DemandLevel.Balanced]: 'text-yellow-400',
-  [DemandLevel.High]: 'text-orange-400',
-  [DemandLevel.Critical]: 'text-red-400',
-}
+import { useEngine } from '../context/game-engine-context'
+import {
+  useMoney,
+  useHoveredTile,
+  useMap,
+  useEconomy,
+  useEvents,
+} from '../hooks/use-game-selector'
+import { GamePanel } from './ui/game-panel'
+import { ProgressBar } from './ui/progress-bar'
+import {
+  DEMAND_TEXT_COLORS,
+  satisfactionColor,
+  satisfactionBarColor,
+  ratioBarColor,
+} from './ui/theme'
 
 const DEMAND_LABELS: Record<DemandLevel, string> = {
   [DemandLevel.Low]: '充足',
@@ -43,12 +43,6 @@ function ResourceBar({
   ratio: number
 }) {
   const pct = Math.round(ratio * 100)
-  const barColor =
-    ratio >= 0.7
-      ? 'bg-green-500'
-      : ratio >= 0.4
-        ? 'bg-yellow-500'
-        : 'bg-red-500'
 
   return (
     <div className="space-y-0.5">
@@ -58,26 +52,9 @@ function ResourceBar({
           {supply.toFixed(0)}/{demand.toFixed(0)} ({pct}%)
         </span>
       </div>
-      <div className="w-full h-1.5 bg-gray-700 rounded-full overflow-hidden">
-        <div
-          className={`h-full rounded-full ${barColor}`}
-          style={{ width: `${pct}%` }}
-        />
-      </div>
+      <ProgressBar barColor={ratioBarColor(ratio)} percent={pct} />
     </div>
   )
-}
-
-function satisfactionColor(sat: number): string {
-  if (sat >= 70) return 'text-green-400'
-  if (sat >= 40) return 'text-yellow-400'
-  return 'text-red-400'
-}
-
-function satisfactionBarColor(sat: number): string {
-  if (sat >= 70) return 'bg-green-500'
-  if (sat >= 40) return 'bg-yellow-500'
-  return 'bg-red-500'
 }
 
 function terrainEffectText(terrain: TerrainType): string | null {
@@ -95,11 +72,17 @@ function terrainEffectText(terrain: TerrainType): string | null {
   }
 }
 
-export function InfoPanel({ state, mapSystem, roadSystem }: InfoPanelProps) {
-  const { money, hoveredTile, map, economy, events } = state
-  const counts = mapSystem.countTiles()
-  const usage = mapSystem.getUsagePercent()
-  const connectionStats = roadSystem.getConnectionStats()
+export function InfoPanel() {
+  const engine = useEngine()
+  const money = useMoney()
+  const hoveredTile = useHoveredTile()
+  const map = useMap()
+  const economy = useEconomy()
+  const events = useEvents()
+
+  const counts = engine.mapSystem.countTiles()
+  const usage = engine.mapSystem.getUsagePercent()
+  const connectionStats = engine.roadSystem.getConnectionStats()
 
   const hoveredTileData = hoveredTile
     ? map.tiles[hoveredTile.y]?.[hoveredTile.x]
@@ -123,7 +106,10 @@ export function InfoPanel({ state, mapSystem, roadSystem }: InfoPanelProps) {
         : '='
 
   return (
-    <div className="absolute top-4 right-4 bg-gray-900/90 rounded-lg p-3 border border-gray-700 select-none min-w-[200px] max-h-[calc(100vh-2rem)] overflow-y-auto">
+    <GamePanel
+      className="min-w-[200px] max-h-[calc(100vh-2rem)] overflow-y-auto"
+      position="top-right"
+    >
       {/* 资金 */}
       <div className="pb-2 mb-2 border-b border-gray-700">
         <div className="text-xs text-gray-400">资金</div>
@@ -160,12 +146,10 @@ export function InfoPanel({ state, mapSystem, roadSystem }: InfoPanelProps) {
               {Math.round(satisfaction)}%
             </span>
           </div>
-          <div className="w-full h-1.5 bg-gray-700 rounded-full overflow-hidden">
-            <div
-              className={`h-full rounded-full ${satisfactionBarColor(satisfaction)}`}
-              style={{ width: `${Math.round(satisfaction)}%` }}
-            />
-          </div>
+          <ProgressBar
+            barColor={satisfactionBarColor(satisfaction)}
+            percent={Math.round(satisfaction)}
+          />
           <div className="flex justify-between">
             <span>人口</span>
             <span>
@@ -218,7 +202,9 @@ export function InfoPanel({ state, mapSystem, roadSystem }: InfoPanelProps) {
           <div className="flex justify-between">
             <span>住宅</span>
             <span
-              className={DEMAND_COLORS[economy.demandIndicators.residential]}
+              className={
+                DEMAND_TEXT_COLORS[economy.demandIndicators.residential]
+              }
             >
               {DEMAND_LABELS[economy.demandIndicators.residential]}
             </span>
@@ -226,7 +212,9 @@ export function InfoPanel({ state, mapSystem, roadSystem }: InfoPanelProps) {
           <div className="flex justify-between">
             <span>商业</span>
             <span
-              className={DEMAND_COLORS[economy.demandIndicators.commercial]}
+              className={
+                DEMAND_TEXT_COLORS[economy.demandIndicators.commercial]
+              }
             >
               {DEMAND_LABELS[economy.demandIndicators.commercial]}
             </span>
@@ -234,7 +222,9 @@ export function InfoPanel({ state, mapSystem, roadSystem }: InfoPanelProps) {
           <div className="flex justify-between">
             <span>工业</span>
             <span
-              className={DEMAND_COLORS[economy.demandIndicators.industrial]}
+              className={
+                DEMAND_TEXT_COLORS[economy.demandIndicators.industrial]
+              }
             >
               {DEMAND_LABELS[economy.demandIndicators.industrial]}
             </span>
@@ -360,6 +350,6 @@ export function InfoPanel({ state, mapSystem, roadSystem }: InfoPanelProps) {
           <div className="text-xs text-gray-500">无</div>
         )}
       </div>
-    </div>
+    </GamePanel>
   )
 }

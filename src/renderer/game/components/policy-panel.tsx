@@ -1,20 +1,21 @@
+import { memo } from 'react'
 import { POLICY_TEMPLATES, MAX_ACTIVE_POLICIES } from '../constants'
-import type { GameState } from 'shared/game-types'
-import type { PolicySystem } from '../systems/policy-system'
+import { useEngine } from '../context/game-engine-context'
+import { usePolicies } from '../hooks/use-game-selector'
+import { GamePanel } from './ui/game-panel'
 
-interface PolicyPanelProps {
-  state: GameState
-  policySystem: PolicySystem
-}
-
-export function PolicyPanel({ state, policySystem }: PolicyPanelProps) {
-  const { policies } = state
+export const PolicyPanel = memo(function PolicyPanel() {
+  const engine = useEngine()
+  const policies = usePolicies()
   const activeCount = policies.activePolicies.length
 
   const categories = [...new Set(POLICY_TEMPLATES.map(t => t.category))]
 
   return (
-    <div className="absolute bottom-16 left-4 bg-gray-900/90 rounded-lg p-3 border border-gray-700 select-none max-w-[280px] max-h-[400px] overflow-y-auto">
+    <GamePanel
+      className="absolute bottom-16 left-4 max-w-[280px] max-h-[400px] overflow-y-auto"
+      size="md"
+    >
       <div className="text-sm text-gray-400 pb-2 mb-2 border-b border-gray-700 flex justify-between">
         <span>政策管理</span>
         <span className="text-xs">
@@ -27,7 +28,7 @@ export function PolicyPanel({ state, policySystem }: PolicyPanelProps) {
           <div className="text-xs text-gray-500 mb-1">{cat}</div>
           {POLICY_TEMPLATES.filter(t => t.category === cat).map(template => {
             const isActive = policies.activePolicies.includes(template.id)
-            const { canToggle, reason } = policySystem.canTogglePolicy(
+            const { canToggle, reason } = engine.policySystem.canTogglePolicy(
               template.id
             )
             const cooldown = policies.cooldowns[template.id] ?? 0
@@ -46,7 +47,7 @@ export function PolicyPanel({ state, policySystem }: PolicyPanelProps) {
                 `}
                 disabled={!canToggle && !isActive}
                 key={template.id}
-                onClick={() => policySystem.togglePolicy(template.id)}
+                onClick={() => engine.policySystem.togglePolicy(template.id)}
                 title={reason}
                 type="button"
               >
@@ -83,9 +84,9 @@ export function PolicyPanel({ state, policySystem }: PolicyPanelProps) {
           })}
         </div>
       ))}
-    </div>
+    </GamePanel>
   )
-}
+})
 
 function getEffectLabel(type: string): string {
   const labels: Record<string, string> = {

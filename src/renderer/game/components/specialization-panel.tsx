@@ -1,17 +1,12 @@
 import { SPECIALIZATION_TEMPLATES } from '../constants'
-import type { GameState } from 'shared/game-types'
-import type { SpecializationSystem } from '../systems/specialization-system'
+import type { SpecializationEffect } from 'shared/game-types'
+import { useEngine } from '../context/game-engine-context'
+import { useSpecialization } from '../hooks/use-game-selector'
+import { ModalOverlay } from './ui/modal-overlay'
 
-interface SpecializationPanelProps {
-  state: GameState
-  specializationSystem: SpecializationSystem
-}
-
-export function SpecializationPanel({
-  state,
-  specializationSystem,
-}: SpecializationPanelProps) {
-  const { specialization } = state
+export function SpecializationPanel() {
+  const engine = useEngine()
+  const specialization = useSpecialization()
 
   // 如果已经选择了特色，显示当前特色
   if (specialization.chosen) {
@@ -33,7 +28,7 @@ export function SpecializationPanel({
   if (specialization.available.length === 0) return null
 
   return (
-    <div className="absolute inset-0 bg-black/60 flex items-center justify-center z-40">
+    <ModalOverlay className="z-40">
       <div className="bg-gray-900 rounded-lg border border-yellow-500/50 p-4 max-w-[500px] w-full mx-4">
         <h2 className="text-lg font-bold text-yellow-400 mb-1">选择城市特色</h2>
         <p className="text-xs text-gray-400 mb-4">
@@ -50,7 +45,7 @@ export function SpecializationPanel({
                 className="text-left p-3 rounded-lg bg-gray-800 border border-gray-600 hover:border-yellow-500/50 hover:bg-gray-700 transition-colors"
                 key={specId}
                 onClick={() =>
-                  specializationSystem.chooseSpecialization(specId)
+                  engine.specializationSystem.chooseSpecialization(specId)
                 }
                 type="button"
               >
@@ -67,13 +62,11 @@ export function SpecializationPanel({
           })}
         </div>
       </div>
-    </div>
+    </ModalOverlay>
   )
 }
 
-function formatSpecEffect(
-  effect: import('shared/game-types').SpecializationEffect
-): string {
+function formatSpecEffect(effect: SpecializationEffect): string {
   const labels: Record<string, string> = {
     industrial_multiplier: '工业产出',
     commercial_multiplier: '商业产出',

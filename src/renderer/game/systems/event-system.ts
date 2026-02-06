@@ -52,7 +52,7 @@ export class EventSystem {
       }
     }
 
-    this.stateManager.updateEventsSilent(events)
+    this.stateManager.update({ events })
   }
 
   /** 获取某个指标的累积乘数 */
@@ -75,7 +75,7 @@ export class EventSystem {
     const events = { ...state.events }
     if (!events.unlockedEventIds.includes(eventId)) {
       events.unlockedEventIds = [...events.unlockedEventIds, eventId]
-      this.stateManager.updateEvents(events)
+      this.stateManager.update({ events })
     }
   }
 

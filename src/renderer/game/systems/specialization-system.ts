@@ -27,7 +27,7 @@ export class SpecializationSystem {
       chosen: specId,
       available: state.specialization.available,
     }
-    this.stateManager.updateSpecialization(spec)
+    this.stateManager.update({ specialization: spec })
     return true
   }
 

@@ -26,14 +26,15 @@ import { isInBounds } from '../input/coordinate-utils'
 export class BuildingSystem {
   private stateManager: GameStateManager
   private roadSystem: RoadSystem
-  private facilitySystem: FacilitySystem | null = null
+  private facilitySystem: FacilitySystem
 
-  constructor(stateManager: GameStateManager, roadSystem: RoadSystem) {
+  constructor(
+    stateManager: GameStateManager,
+    roadSystem: RoadSystem,
+    facilitySystem: FacilitySystem
+  ) {
     this.stateManager = stateManager
     this.roadSystem = roadSystem
-  }
-
-  setFacilitySystem(facilitySystem: FacilitySystem): void {
     this.facilitySystem = facilitySystem
   }
 
@@ -86,10 +87,7 @@ export class BuildingSystem {
 
   private buildFacility(x: number, y: number, tileType: TileType): boolean {
     // 检查设施是否已解锁
-    if (
-      this.facilitySystem &&
-      !this.facilitySystem.isFacilityUnlocked(tileType)
-    ) {
+    if (!this.facilitySystem.isFacilityUnlocked(tileType)) {
       return false
     }
 

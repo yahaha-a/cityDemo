@@ -9,18 +9,16 @@ import type { SynergySystem } from './synergy-system'
  */
 export class TechSystem {
   private stateManager: GameStateManager
-  private policySystem: PolicySystem | null = null
-  private synergySystem: SynergySystem | null = null
+  private policySystem: PolicySystem
+  private synergySystem: SynergySystem
 
-  constructor(stateManager: GameStateManager) {
+  constructor(
+    stateManager: GameStateManager,
+    policySystem: PolicySystem,
+    synergySystem: SynergySystem
+  ) {
     this.stateManager = stateManager
-  }
-
-  setPolicySystem(policySystem: PolicySystem): void {
     this.policySystem = policySystem
-  }
-
-  setSynergySystem(synergySystem: SynergySystem): void {
     this.synergySystem = synergySystem
   }
 
@@ -49,7 +47,7 @@ export class TechSystem {
       }
     }
 
-    this.stateManager.updateTechSilent(tech)
+    this.stateManager.update({ tech })
   }
 
   /** 设置当前研究目标 */
@@ -70,7 +68,7 @@ export class TechSystem {
 
     tech.currentResearch = techId
     tech.researchProgress = 0
-    this.stateManager.updateTech(tech)
+    this.stateManager.update({ tech })
     return true
   }
 
@@ -80,7 +78,7 @@ export class TechSystem {
     const tech = { ...state.tech }
     tech.currentResearch = null
     tech.researchProgress = 0
-    this.stateManager.updateTech(tech)
+    this.stateManager.update({ tech })
   }
 
   /** 检查科技是否可研究 */
@@ -122,7 +120,7 @@ export class TechSystem {
 
     // 政策乘数
     const policyMult =
-      this.policySystem?.getAggregatedEffect('research_multiplier') ?? 1
+      this.policySystem.getAggregatedEffect('research_multiplier') ?? 1
 
     // 科技乘数
     let techMult = 1
@@ -178,7 +176,7 @@ export class TechSystem {
           const spec = { ...state.specialization }
           if (!spec.available.includes(effect.target)) {
             spec.available = [...spec.available, effect.target]
-            this.stateManager.updateSpecialization(spec)
+            this.stateManager.update({ specialization: spec })
           }
           if (!tech.unlockedSpecializations.includes(effect.target)) {
             tech.unlockedSpecializations = [
@@ -190,7 +188,7 @@ export class TechSystem {
         }
         case 'increase_synergy_radius': {
           if (!effect.target || effect.value === undefined) break
-          this.synergySystem?.setRadiusOverride(effect.target, effect.value)
+          this.synergySystem.setRadiusOverride(effect.target, effect.value)
           break
         }
         case 'research_multiplier': {

@@ -138,6 +138,6 @@ export class FacilitySystem {
       avgCrisisResistance,
     }
 
-    this.stateManager.updateFacilities(facilitiesState)
+    this.stateManager.update({ facilities: facilitiesState })
   }
 }

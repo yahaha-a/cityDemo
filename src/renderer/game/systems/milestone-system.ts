@@ -93,7 +93,7 @@ export class MilestoneSystem {
     // 合并待消费奖励通知
     ms.pendingRewards = [...ms.pendingRewards, ...newRewards]
 
-    this.stateManager.updateMilestones(ms)
+    this.stateManager.update({ milestones: ms })
   }
 
   /** 消费一条待处理奖励通知 */
@@ -104,7 +104,7 @@ export class MilestoneSystem {
 
     const [reward, ...rest] = ms.pendingRewards
     ms.pendingRewards = rest
-    this.stateManager.updateMilestones(ms)
+    this.stateManager.update({ milestones: ms })
     return reward
   }
 

@@ -1,13 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
 import { TimeSpeed } from 'shared/game-types'
-import type { GameStateManager } from '../engine/game-state'
-import type { GameState } from 'shared/game-types'
 import { DAY_DURATION_MS } from '../constants'
-
-interface TimeControlProps {
-  state: GameState
-  stateManager: GameStateManager
-}
+import { useEngine } from '../context/game-engine-context'
+import { useTimeState, useEconomy } from '../hooks/use-game-selector'
+import { GameButton } from './ui/game-button'
+import { GamePanel } from './ui/game-panel'
+import { satisfactionColor } from './ui/theme'
 
 const SPEED_OPTIONS = [
   { speed: TimeSpeed.Paused, label: '||', title: '暂停' },
@@ -16,15 +14,16 @@ const SPEED_OPTIONS = [
   { speed: TimeSpeed.Ultra, label: '>>>', title: '极速' },
 ]
 
-export function TimeControl({ state, stateManager }: TimeControlProps) {
-  const { time, economy } = state
+export function TimeControl() {
+  const engine = useEngine()
+  const time = useTimeState()
+  const economy = useEconomy()
   const [progress, setProgress] = useState(0)
   const animFrameRef = useRef<number>(0)
 
-  // 使用 requestAnimationFrame 平滑更新进度条
   useEffect(() => {
     const updateProgress = () => {
-      const currentTime = stateManager.getState().time
+      const currentTime = engine.stateManager.getState().time
       const dayProgress = (currentTime.tickAccumulator / DAY_DURATION_MS) * 100
       setProgress(Math.min(dayProgress, 100))
       animFrameRef.current = requestAnimationFrame(updateProgress)
@@ -37,10 +36,10 @@ export function TimeControl({ state, stateManager }: TimeControlProps) {
         cancelAnimationFrame(animFrameRef.current)
       }
     }
-  }, [stateManager])
+  }, [engine.stateManager])
 
   return (
-    <div className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-gray-900/90 rounded-lg px-4 py-2 border border-gray-700 select-none flex items-center gap-4">
+    <GamePanel className="absolute bottom-4 left-1/2 -translate-x-1/2 px-4 py-2 flex items-center gap-4">
       {/* 天数 */}
       <div className="text-sm text-gray-300">
         <span className="text-gray-500">Day</span>{' '}
@@ -58,22 +57,15 @@ export function TimeControl({ state, stateManager }: TimeControlProps) {
       {/* 速度控制 */}
       <div className="flex gap-1">
         {SPEED_OPTIONS.map(({ speed, label, title }) => (
-          <button
-            className={`
-              px-2 py-1 text-xs rounded transition-colors font-mono
-              ${
-                time.speed === speed
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
-              }
-            `}
+          <GameButton
+            intent={time.speed === speed ? 'active' : 'default'}
             key={speed}
-            onClick={() => stateManager.setTimeSpeed(speed)}
+            onClick={() => engine.stateManager.setTimeSpeed(speed)}
             title={title}
-            type="button"
+            variant="speed"
           >
             {label}
-          </button>
+          </GameButton>
         ))}
       </div>
 
@@ -98,19 +90,11 @@ export function TimeControl({ state, stateManager }: TimeControlProps) {
         </div>
         <div className="flex gap-2 items-center">
           <span className="text-gray-500">满意度</span>
-          <span
-            className={
-              economy.satisfaction >= 70
-                ? 'text-green-400'
-                : economy.satisfaction >= 40
-                  ? 'text-yellow-400'
-                  : 'text-red-400'
-            }
-          >
+          <span className={satisfactionColor(economy.satisfaction)}>
             {Math.round(economy.satisfaction)}%
           </span>
         </div>
       </div>
-    </div>
+    </GamePanel>
   )
 }
