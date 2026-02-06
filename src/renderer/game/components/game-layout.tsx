@@ -1,11 +1,13 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import { GameCanvas } from './game-canvas'
 import type { GameEngine } from '../engine/game-engine'
 import { GameEngineProvider, useEngine } from '../context/game-engine-context'
 import { GameErrorBoundary } from './game-error-boundary'
-import { Toolbar } from './toolbar'
+import { HudBar } from './hud-bar'
+import { DockToolbar, type ModalType } from './dock-toolbar'
 import { InfoPanel } from './info-panel'
-import { TimeControl } from './time-control'
+import { StatusPanel } from './status-panel'
+import { TileTooltip } from './tile-tooltip'
 import { GameMenu } from './game-menu'
 import { MilestonePanel } from './milestone-panel'
 import { EventToast } from './event-toast'
@@ -23,8 +25,8 @@ import { ModalOverlay } from './ui/modal-overlay'
 
 function GameUI() {
   const engine = useEngine()
-  const [showPolicy, setShowPolicy] = useState(false)
-  const [showTech, setShowTech] = useState(false)
+  const [activeModal, setActiveModal] = useState<ModalType>(null)
+  const [menuOpen, setMenuOpen] = useState(false)
 
   const tech = useTechState()
   const challenge = useChallenge()
@@ -41,53 +43,83 @@ function GameUI() {
     engine.stateManager.resetGame()
   }, [engine.stateManager])
 
+  const handleToggleModal = useCallback((modal: ModalType) => {
+    setActiveModal(modal)
+  }, [])
+
+  // Escape 键关闭面板
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        if (menuOpen) {
+          setMenuOpen(false)
+        } else if (activeModal) {
+          setActiveModal(null)
+        }
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [activeModal, menuOpen])
+
   return (
     <>
-      <Toolbar onSelectTool={handleSelectTool} />
-      <InfoPanel />
-      <MilestonePanel />
-      <EventToast />
-      <TimeControl />
-      <GameMenu onNewGame={handleNewGame} />
+      {/* HUD 顶栏 */}
+      <HudBar onOpenMenu={() => setMenuOpen(true)} />
 
-      {/* 底部面板切换按钮 */}
-      <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-2">
-        <GameButton
-          className={showPolicy ? '' : 'border border-gray-700'}
-          intent={showPolicy ? 'active' : 'default'}
-          onClick={() => {
-            setShowPolicy(!showPolicy)
-            setShowTech(false)
-          }}
-          variant="toggle"
-        >
-          政策
-        </GameButton>
-        <GameButton
-          className={showTech ? '' : 'border border-gray-700'}
-          intent={showTech ? 'purple' : 'default'}
-          onClick={() => {
-            setShowTech(!showTech)
-            setShowPolicy(false)
-          }}
-          variant="toggle"
-        >
-          科技 {tech.dailyRP > 0 ? `(${tech.dailyRP} RP/日)` : ''}
-        </GameButton>
-        {challenge.challengeMode && (
-          <div className="px-3 py-1.5 rounded text-xs bg-gray-800/90 border border-gray-700 text-gray-300">
-            {challenge.gameOver
-              ? `败北 - 分数: ${challenge.score}`
-              : challenge.gameWon
-                ? `胜利! 分数: ${challenge.score}`
-                : `挑战中 ${challenge.winProgress > 0 ? `(${challenge.winProgress}/30)` : ''}`}
-          </div>
-        )}
+      {/* 底部 Dock 工具栏 */}
+      <DockToolbar
+        activeModal={activeModal}
+        onSelectTool={handleSelectTool}
+        onToggleModal={handleToggleModal}
+      />
+
+      {/* 左侧边栏 - 状态面板 */}
+      <div className="absolute top-10 left-0 bottom-16 w-[200px] z-25 pointer-events-auto">
+        <StatusPanel />
       </div>
 
-      {/* 条件面板 */}
-      {showPolicy && <PolicyPanel />}
-      {showTech && <TechPanel />}
+      {/* 右侧边栏 - 信息面板 */}
+      <div className="absolute top-10 right-0 bottom-16 w-[240px] z-25 pointer-events-auto">
+        <InfoPanel />
+      </div>
+
+      {/* 弹窗面板 */}
+      {activeModal && (
+        <ModalOverlay
+          onClick={() => setActiveModal(null)}
+        >
+          <div onClick={e => e.stopPropagation()} onKeyDown={() => {}}>
+            {activeModal === 'milestones' && <MilestonePanel />}
+            {activeModal === 'policy' && <PolicyPanel />}
+            {activeModal === 'tech' && <TechPanel dailyRP={tech.dailyRP} />}
+          </div>
+        </ModalOverlay>
+      )}
+
+      {/* 浮动 Tooltip */}
+      <TileTooltip />
+
+      {/* 事件通知 - HudBar 下方 */}
+      <EventToast />
+
+      {/* 挑战模式信息 */}
+      {challenge.challengeMode && (
+        <div className="absolute top-12 left-1/2 -translate-x-1/2 px-3 py-1.5 rounded-[var(--game-radius-md)] text-xs game-parchment-bg border border-[var(--game-wood)] text-[var(--game-text)] z-10">
+          {challenge.gameOver
+            ? `败北 - 分数: ${challenge.score}`
+            : challenge.gameWon
+              ? `胜利! 分数: ${challenge.score}`
+              : `挑战中 ${challenge.winProgress > 0 ? `(${challenge.winProgress}/30)` : ''}`}
+        </div>
+      )}
+
+      {/* 游戏菜单 */}
+      <GameMenu
+        isOpen={menuOpen}
+        onClose={() => setMenuOpen(false)}
+        onNewGame={handleNewGame}
+      />
 
       {/* 危机弹窗 */}
       <CrisisDialog />
@@ -99,14 +131,14 @@ function GameUI() {
 
       {/* 挑战模式游戏结束覆盖 */}
       {challenge.challengeMode && (challenge.gameOver || challenge.gameWon) && (
-        <ModalOverlay className="bg-black/70">
-          <div className="bg-gray-900 rounded-lg border border-gray-600 p-6 text-center">
+        <ModalOverlay className="z-50">
+          <div className="game-parchment-bg game-wood-frame rounded-[var(--game-radius-lg)] p-6 text-center">
             <h2
-              className={`text-2xl font-bold mb-2 ${challenge.gameWon ? 'text-green-400' : 'text-red-400'}`}
+              className={`text-2xl font-bold font-[family-name:var(--font-heading)] mb-2 ${challenge.gameWon ? 'text-[var(--game-green)]' : 'text-[var(--game-red)]'}`}
             >
               {challenge.gameWon ? '胜利!' : '败北'}
             </h2>
-            <div className="text-lg text-white mb-4">
+            <div className="text-lg text-[var(--game-text)] mb-4">
               最终得分: {challenge.score}
             </div>
             <GameButton
@@ -131,7 +163,27 @@ export function GameLayout() {
   }, [])
 
   return (
-    <div className="relative w-screen h-screen overflow-hidden bg-gray-950">
+    <div className="relative w-screen h-screen overflow-hidden bg-[var(--game-parchment-dark)]">
+      {/* 隐藏 SVG 滤镜定义 */}
+      <svg aria-hidden="true" className="absolute w-0 h-0">
+        <defs>
+          <filter id="hand-drawn">
+            <feTurbulence
+              baseFrequency="0.02"
+              numOctaves="3"
+              result="noise"
+              type="fractalNoise"
+            />
+            <feDisplacementMap
+              in="SourceGraphic"
+              in2="noise"
+              scale="1"
+              xChannelSelector="R"
+              yChannelSelector="G"
+            />
+          </filter>
+        </defs>
+      </svg>
       <GameCanvas onEngineReady={handleEngineReady} />
       {engine && (
         <GameEngineProvider engine={engine}>

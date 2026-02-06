@@ -1,3 +1,4 @@
+@import url("https://fonts.googleapis.com/css2?family=ZCOOL+XiaoWei&family=Noto+Sans+SC:wght@300;400;500;700&display=swap");
 @import "tailwindcss";
 
 @plugin "tailwindcss-animate";
@@ -38,6 +39,61 @@
   --sidebar-accent-foreground: oklch(0.205 0 0);
   --sidebar-border: oklch(0.922 0 0);
   --sidebar-ring: oklch(0.708 0 0);
+
+  /* === Game Theme: 拟物/手绘风格 === */
+  /* 字体 */
+  --font-heading: "ZCOOL XiaoWei", serif;
+  --font-body: "Noto Sans SC", sans-serif;
+
+  /* 羊皮纸色系 */
+  --game-parchment: oklch(0.92 0.03 80);
+  --game-parchment-light: oklch(0.95 0.02 80);
+  --game-parchment-dark: oklch(0.85 0.04 80);
+
+  /* 木质色系 */
+  --game-wood: oklch(0.5 0.1 60);
+  --game-wood-light: oklch(0.6 0.09 60);
+  --game-wood-dark: oklch(0.38 0.1 55);
+
+  /* 文字色系 (深棕色) */
+  --game-text: oklch(0.3 0.05 55);
+  --game-text-muted: oklch(0.5 0.04 60);
+  --game-text-heading: oklch(0.25 0.06 50);
+
+  /* 自然强调色 */
+  --game-green: oklch(0.55 0.15 145);
+  --game-red: oklch(0.5 0.15 25);
+  --game-gold: oklch(0.72 0.14 75);
+  --game-blue: oklch(0.5 0.1 230);
+  --game-purple: oklch(0.5 0.1 300);
+
+  /* 浅色强调 */
+  --game-green-light: oklch(0.7 0.12 145);
+  --game-red-light: oklch(0.65 0.12 25);
+  --game-gold-light: oklch(0.82 0.1 75);
+  --game-blue-light: oklch(0.65 0.08 230);
+  --game-purple-light: oklch(0.65 0.08 300);
+
+  /* 语义别名 */
+  --game-income: var(--game-green);
+  --game-expense: var(--game-red);
+  --game-highlight: var(--game-gold);
+
+  /* 阴影系统 */
+  --game-shadow-panel:
+    0 2px 8px oklch(0.3 0.05 55 / 0.15), 0 1px 3px oklch(0.3 0.05 55 / 0.1),
+    inset 0 1px 0 oklch(0.95 0.02 80 / 0.5);
+  --game-shadow-button:
+    0 2px 4px oklch(0.3 0.05 55 / 0.15), 0 1px 2px oklch(0.3 0.05 55 / 0.1);
+  --game-shadow-inset: inset 0 2px 4px oklch(0.3 0.05 55 / 0.15);
+
+  /* 遮罩 */
+  --game-overlay: oklch(0.4 0.05 55 / 0.5);
+
+  /* 圆角 */
+  --game-radius-sm: 4px;
+  --game-radius-md: 8px;
+  --game-radius-lg: 12px;
 }
 
 .dark {
@@ -121,6 +177,7 @@
   }
 
   body {
+    font-family: var(--font-body);
     @apply bg-background text-foreground;
   }
 
@@ -130,5 +187,151 @@
     scroll-behavior: smooth;
     -webkit-app-region: no-drag;
     -webkit-font-smoothing: antialiased;
+  }
+}
+
+/* === Game 滚动条 === */
+
+/* Webkit 浏览器 (Chromium/Electron) */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--game-parchment-dark);
+  border-radius: var(--game-radius-sm);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--game-wood-light);
+  border-radius: var(--game-radius-sm);
+  border: 1px solid var(--game-wood-dark);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--game-wood);
+}
+
+::-webkit-scrollbar-thumb:active {
+  background: var(--game-wood-dark);
+}
+
+::-webkit-scrollbar-corner {
+  background: var(--game-parchment-dark);
+}
+
+/* === Game 工具类 === */
+
+.game-parchment-bg {
+  background-color: var(--game-parchment);
+  background-image:
+    radial-gradient(
+      ellipse at 20% 50%,
+      oklch(0.9 0.04 75 / 0.3) 0%,
+      transparent 50%
+    ),
+    radial-gradient(
+      ellipse at 80% 20%,
+      oklch(0.88 0.03 85 / 0.2) 0%,
+      transparent 50%
+    );
+}
+
+.game-wood-frame {
+  border: 3px solid var(--game-wood);
+  box-shadow:
+    var(--game-shadow-panel),
+    inset 0 0 0 1px var(--game-wood-light),
+    0 0 0 1px var(--game-wood-dark);
+}
+
+.game-seal {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  font-size: 10px;
+  font-weight: bold;
+  border-radius: 50%;
+  box-shadow: 0 1px 3px oklch(0.3 0.05 55 / 0.3);
+}
+
+.game-ribbon {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 10px;
+  font-size: 10px;
+  font-weight: 600;
+  border-radius: 2px;
+}
+
+/* === Game 动画关键帧 === */
+
+@keyframes slideUp {
+  from {
+    transform: translateY(12px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+@keyframes slideDown {
+  from {
+    transform: translateY(-12px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes fadeOut {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes scaleIn {
+  from {
+    transform: scale(0.92);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+@keyframes stampIn {
+  0% {
+    transform: scale(2) rotate(-10deg);
+    opacity: 0;
+  }
+  60% {
+    transform: scale(0.95) rotate(1deg);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1) rotate(0deg);
+    opacity: 1;
   }
 }

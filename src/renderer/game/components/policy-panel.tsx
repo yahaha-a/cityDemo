@@ -2,7 +2,9 @@ import { memo } from 'react'
 import { POLICY_TEMPLATES, MAX_ACTIVE_POLICIES } from '../constants'
 import { useEngine } from '../context/game-engine-context'
 import { usePolicies } from '../hooks/use-game-selector'
-import { GamePanel } from './ui/game-panel'
+import { GamePanel, GamePanelHeader } from './ui/game-panel'
+import { ScrollText } from 'lucide-react'
+import { cn } from 'renderer/lib/utils'
 
 export const PolicyPanel = memo(function PolicyPanel() {
   const engine = useEngine()
@@ -13,19 +15,24 @@ export const PolicyPanel = memo(function PolicyPanel() {
 
   return (
     <GamePanel
-      className="absolute bottom-16 left-4 max-w-[280px] max-h-[400px] overflow-y-auto"
+      className="relative min-w-[300px] max-h-[80vh] overflow-y-auto"
       size="md"
     >
-      <div className="text-sm text-gray-400 pb-2 mb-2 border-b border-gray-700 flex justify-between">
-        <span>政策管理</span>
-        <span className="text-xs">
+      <GamePanelHeader>
+        <div className="flex items-center gap-1.5">
+          <ScrollText className="text-[var(--game-blue)]" size={16} />
+          <span>政策管理</span>
+        </div>
+        <span className="text-xs text-[var(--game-text-muted)]">
           {activeCount}/{MAX_ACTIVE_POLICIES}
         </span>
-      </div>
+      </GamePanelHeader>
 
       {categories.map(cat => (
         <div className="mb-2" key={cat}>
-          <div className="text-xs text-gray-500 mb-1">{cat}</div>
+          <div className="text-xs text-[var(--game-text-muted)] mb-1 font-[family-name:var(--font-heading)]">
+            {cat}
+          </div>
           {POLICY_TEMPLATES.filter(t => t.category === cat).map(template => {
             const isActive = policies.activePolicies.includes(template.id)
             const { canToggle, reason } = engine.policySystem.canTogglePolicy(
@@ -35,16 +42,14 @@ export const PolicyPanel = memo(function PolicyPanel() {
 
             return (
               <button
-                className={`
-                  w-full text-left px-2 py-1.5 rounded text-xs mb-1 transition-colors
-                  ${
-                    isActive
-                      ? 'bg-blue-600/40 text-blue-200 border border-blue-500/50'
-                      : canToggle
-                        ? 'bg-gray-800 text-gray-300 hover:bg-gray-700 border border-transparent'
-                        : 'bg-gray-800/50 text-gray-600 border border-transparent cursor-not-allowed'
-                  }
-                `}
+                className={cn(
+                  'w-full text-left px-2 py-1.5 rounded-[var(--game-radius-sm)] text-xs mb-1 transition-all border',
+                  isActive
+                    ? 'bg-[var(--game-blue)]/15 text-[var(--game-text)] border-[var(--game-blue)] shadow-[var(--game-shadow-inset)]'
+                    : canToggle
+                      ? 'bg-[var(--game-parchment-light)] text-[var(--game-text)] hover:bg-[var(--game-parchment-dark)] border-[var(--game-wood)]/30 cursor-pointer'
+                      : 'bg-[var(--game-parchment-dark)]/50 text-[var(--game-text-muted)] border-dashed border-[var(--game-wood)]/20 cursor-not-allowed opacity-60'
+                )}
                 disabled={!canToggle && !isActive}
                 key={template.id}
                 onClick={() => engine.policySystem.togglePolicy(template.id)}
@@ -54,15 +59,17 @@ export const PolicyPanel = memo(function PolicyPanel() {
                 <div className="flex justify-between items-center">
                   <span className="font-medium">{template.name}</span>
                   {isActive && (
-                    <span className="text-[10px] text-blue-300">ON</span>
+                    <span className="game-seal bg-[var(--game-blue)] text-white">
+                      ON
+                    </span>
                   )}
                   {cooldown > 0 && (
-                    <span className="text-[10px] text-gray-500">
+                    <span className="text-[10px] text-[var(--game-text-muted)]">
                       {cooldown}d
                     </span>
                   )}
                 </div>
-                <div className="text-[10px] text-gray-400 mt-0.5">
+                <div className="text-[10px] text-[var(--game-text-muted)] mt-0.5">
                   {template.effects
                     .map(e => {
                       const sign =
@@ -75,7 +82,7 @@ export const PolicyPanel = memo(function PolicyPanel() {
                     .join(', ')}
                 </div>
                 {!canToggle && !isActive && reason && (
-                  <div className="text-[10px] text-red-400/70 mt-0.5">
+                  <div className="text-[10px] text-[var(--game-red)] mt-0.5">
                     {reason}
                   </div>
                 )}
