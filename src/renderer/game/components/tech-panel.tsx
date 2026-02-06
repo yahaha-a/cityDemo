@@ -2,10 +2,18 @@ import { memo } from 'react'
 import { TECH_TREE } from '../constants'
 import { useEngine } from '../context/game-engine-context'
 import { useTechState } from '../hooks/use-game-selector'
-import { GamePanel } from './ui/game-panel'
+import { GamePanel, GamePanelHeader } from './ui/game-panel'
 import { ProgressBar } from './ui/progress-bar'
+import { FlaskConical, BookOpen, Lock, Check } from 'lucide-react'
+import { cn } from 'renderer/lib/utils'
 
-export const TechPanel = memo(function TechPanel() {
+interface TechPanelProps {
+  dailyRP: number
+}
+
+export const TechPanel = memo(function TechPanel({
+  dailyRP,
+}: TechPanelProps) {
   const engine = useEngine()
   const tech = useTechState()
   const tiers = [1, 2, 3, 4]
@@ -17,28 +25,36 @@ export const TechPanel = memo(function TechPanel() {
 
   return (
     <GamePanel
-      className="absolute bottom-16 right-4 max-w-[300px] max-h-[450px] overflow-y-auto"
+      className="relative min-w-[320px] max-h-[80vh] overflow-y-auto"
       size="md"
     >
-      <div className="text-sm text-gray-400 pb-2 mb-2 border-b border-gray-700 flex justify-between">
-        <span>科技树</span>
-        <span className="text-xs text-purple-400">RP: {tech.dailyRP}/日</span>
-      </div>
+      <GamePanelHeader>
+        <div className="flex items-center gap-1.5">
+          <FlaskConical className="text-[var(--game-purple)]" size={16} />
+          <span>科技树</span>
+        </div>
+        <span className="text-xs text-[var(--game-purple)]">
+          RP: {dailyRP}/日
+        </span>
+      </GamePanelHeader>
 
       {/* 当前研究 */}
       {currentNode && (
-        <div className="mb-2 p-2 rounded bg-purple-900/30 border border-purple-500/30">
-          <div className="text-xs text-purple-300 flex justify-between">
-            <span>研究中: {currentNode.name}</span>
+        <div className="mb-2 p-2 rounded-[var(--game-radius-md)] bg-[var(--game-purple)]/10 border border-[var(--game-purple)]/30">
+          <div className="text-xs text-[var(--game-purple)] flex justify-between">
+            <span className="flex items-center gap-1">
+              <BookOpen size={12} />
+              研究中: {currentNode.name}
+            </span>
             <span>{Math.round(progress * 100)}%</span>
           </div>
           <ProgressBar
-            barColor="bg-purple-500"
+            barColor="bg-[var(--game-purple)]"
             className="mt-1"
             percent={Math.round(progress * 100)}
           />
           <button
-            className="text-[10px] text-gray-500 hover:text-red-400 mt-1"
+            className="text-[10px] text-[var(--game-text-muted)] hover:text-[var(--game-red)] mt-1 cursor-pointer"
             onClick={() => engine.techSystem.cancelResearch()}
             type="button"
           >
@@ -52,7 +68,7 @@ export const TechPanel = memo(function TechPanel() {
         const nodes = TECH_TREE.filter(t => t.tier === tier)
         return (
           <div className="mb-2" key={tier}>
-            <div className="text-[10px] text-gray-500 mb-1">
+            <div className="text-[10px] text-[var(--game-text-muted)] mb-1 font-[family-name:var(--font-heading)]">
               Tier {tier} {tier === 4 ? '(特色)' : ''}
             </div>
             <div className="space-y-1">
@@ -66,39 +82,52 @@ export const TechPanel = memo(function TechPanel() {
 
                 return (
                   <button
-                    className={`
-                      w-full text-left px-2 py-1.5 rounded text-xs transition-colors
-                      ${
-                        isResearched
-                          ? 'bg-green-900/30 text-green-300 border border-green-500/30'
-                          : isCurrent
-                            ? 'bg-purple-900/30 text-purple-300 border border-purple-500/30'
-                            : canResearch
-                              ? 'bg-gray-800 text-gray-300 hover:bg-gray-700 border border-transparent'
-                              : 'bg-gray-800/30 text-gray-600 border border-transparent cursor-not-allowed'
-                      }
-                    `}
+                    className={cn(
+                      'w-full text-left px-2 py-1.5 rounded-[var(--game-radius-sm)] text-xs transition-all border',
+                      isResearched
+                        ? 'bg-[var(--game-green)]/10 text-[var(--game-text)] border-[var(--game-green)]/30'
+                        : isCurrent
+                          ? 'bg-[var(--game-purple)]/10 text-[var(--game-text)] border-[var(--game-purple)]/30'
+                          : canResearch
+                            ? 'bg-[var(--game-parchment-light)] text-[var(--game-text)] hover:bg-[var(--game-parchment-dark)] border-[var(--game-wood)]/30 cursor-pointer'
+                            : 'bg-[var(--game-parchment-dark)]/30 text-[var(--game-text-muted)] border-transparent cursor-not-allowed opacity-60'
+                    )}
                     disabled={isResearched || isCurrent || !canResearch}
                     key={node.id}
                     onClick={() => engine.techSystem.setResearch(node.id)}
                     type="button"
                   >
                     <div className="flex justify-between items-center">
-                      <span className="font-medium">
-                        {isResearched ? '\u2713 ' : ''}
+                      <span className="font-medium flex items-center gap-1">
+                        {isResearched ? (
+                          <Check
+                            className="text-[var(--game-green)]"
+                            size={12}
+                          />
+                        ) : !prereqsMet && !isResearched ? (
+                          <Lock
+                            className="text-[var(--game-text-muted)]"
+                            size={12}
+                          />
+                        ) : null}
                         {node.name}
                       </span>
                       {!isResearched && (
-                        <span className="text-[10px] text-gray-500">
+                        <span className="text-[10px] text-[var(--game-text-muted)]">
                           {node.rpCost} RP
                         </span>
                       )}
+                      {isResearched && (
+                        <span className="game-seal bg-[var(--game-green)] text-white">
+                          <Check size={10} />
+                        </span>
+                      )}
                     </div>
-                    <div className="text-[10px] text-gray-400 mt-0.5">
+                    <div className="text-[10px] text-[var(--game-text-muted)] mt-0.5">
                       {node.description}
                     </div>
                     {!prereqsMet && !isResearched && (
-                      <div className="text-[10px] text-red-400/70 mt-0.5">
+                      <div className="text-[10px] text-[var(--game-red)] mt-0.5">
                         需要:{' '}
                         {node.prerequisites
                           .map(p => {

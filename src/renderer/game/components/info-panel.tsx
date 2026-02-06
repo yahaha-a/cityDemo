@@ -1,21 +1,20 @@
+import { useState } from 'react'
 import {
   TILE_LABELS,
-  TERRAIN_LABELS,
-  TERRAIN_BUILD_COST_MULTIPLIER,
   BUILDING_COSTS,
-  UPGRADE_COST_MULTIPLIER,
-  MAX_BUILDING_LEVEL,
 } from '../constants'
-import { TileType, TerrainType, DemandLevel } from 'shared/game-types'
+import { TileType, DemandLevel } from 'shared/game-types'
 import { useEngine } from '../context/game-engine-context'
 import {
   useMoney,
-  useHoveredTile,
-  useMap,
   useEconomy,
   useEvents,
 } from '../hooks/use-game-selector'
-import { GamePanel } from './ui/game-panel'
+import {
+  GamePanel,
+  GamePanelHeader,
+  GamePanelDivider,
+} from './ui/game-panel'
 import { ProgressBar } from './ui/progress-bar'
 import {
   DEMAND_TEXT_COLORS,
@@ -23,6 +22,8 @@ import {
   satisfactionBarColor,
   ratioBarColor,
 } from './ui/theme'
+import { Coins, Users, SmilePlus, BarChart3, ChevronDown } from 'lucide-react'
+import { cn } from 'renderer/lib/utils'
 
 const DEMAND_LABELS: Record<DemandLevel, string> = {
   [DemandLevel.Low]: '充足',
@@ -46,7 +47,7 @@ function ResourceBar({
 
   return (
     <div className="space-y-0.5">
-      <div className="flex justify-between text-xs text-gray-300">
+      <div className="flex justify-between text-xs text-[var(--game-text)]">
         <span>{label}</span>
         <span>
           {supply.toFixed(0)}/{demand.toFixed(0)} ({pct}%)
@@ -57,26 +58,46 @@ function ResourceBar({
   )
 }
 
-function terrainEffectText(terrain: TerrainType): string | null {
-  switch (terrain) {
-    case TerrainType.Hill:
-      return '建造成本 x2'
-    case TerrainType.Water:
-      return '不可建造，相邻住宅+满意度'
-    case TerrainType.Fertile:
-      return '工业产出 x1.5'
-    case TerrainType.Rocky:
-      return '建造成本 x1.3'
-    default:
-      return null
-  }
+function AccordionSection({
+  title,
+  icon,
+  defaultOpen = true,
+  children,
+}: {
+  title: string
+  icon?: React.ReactNode
+  defaultOpen?: boolean
+  children: React.ReactNode
+}) {
+  const [open, setOpen] = useState(defaultOpen)
+
+  return (
+    <div>
+      <button
+        className="w-full flex items-center justify-between text-xs text-[var(--game-text-muted)] cursor-pointer py-0.5 hover:text-[var(--game-text)] transition-colors"
+        onClick={() => setOpen(prev => !prev)}
+        type="button"
+      >
+        <span className="flex items-center gap-1.5">
+          {icon}
+          {title}
+        </span>
+        <ChevronDown
+          className={cn(
+            'transition-transform',
+            open ? 'rotate-0' : '-rotate-90'
+          )}
+          size={12}
+        />
+      </button>
+      {open && <div className="mt-1">{children}</div>}
+    </div>
+  )
 }
 
 export function InfoPanel() {
   const engine = useEngine()
   const money = useMoney()
-  const hoveredTile = useHoveredTile()
-  const map = useMap()
   const economy = useEconomy()
   const events = useEvents()
 
@@ -84,16 +105,11 @@ export function InfoPanel() {
   const usage = engine.mapSystem.getUsagePercent()
   const connectionStats = engine.roadSystem.getConnectionStats()
 
-  const hoveredTileData = hoveredTile
-    ? map.tiles[hoveredTile.y]?.[hoveredTile.x]
-    : null
-
   const {
     resources,
     satisfaction,
     population,
     populationCapacity,
-    efficiencyByType,
   } = economy
 
   const popTrend =
@@ -107,41 +123,48 @@ export function InfoPanel() {
 
   return (
     <GamePanel
-      className="min-w-[200px] max-h-[calc(100vh-2rem)] overflow-y-auto"
-      position="top-right"
+      className="relative h-full rounded-none overflow-y-auto"
+      size="md"
     >
-      {/* 资金 */}
-      <div className="pb-2 mb-2 border-b border-gray-700">
-        <div className="text-xs text-gray-400">资金</div>
-        <div className="text-xl font-bold text-green-400">
-          ${money.toLocaleString()}
+      {/* 城市财务 */}
+      <AccordionSection
+        defaultOpen
+        icon={<Coins className="text-[var(--game-gold)]" size={14} />}
+        title="城市财务"
+      >
+        <div className="flex items-baseline gap-2">
+          <span className="text-xl font-bold font-[family-name:var(--font-heading)] text-[var(--game-green)]">
+            ${money.toLocaleString()}
+          </span>
+          {economy.lastDayRevenue !== 0 && (
+            <span
+              className={cn(
+                'text-xs font-bold',
+                economy.lastDayRevenue > 0
+                  ? 'text-[var(--game-green)]'
+                  : 'text-[var(--game-red)]'
+              )}
+            >
+              {economy.lastDayRevenue > 0 ? '+' : ''}
+              {economy.lastDayRevenue}/日
+            </span>
+          )}
         </div>
-      </div>
+      </AccordionSection>
 
-      {/* 当前事件 */}
-      {events.activeEvents.length > 0 && (
-        <div className="pb-2 mb-2 border-b border-gray-700">
-          <div className="text-xs text-gray-400 mb-1">当前事件</div>
-          {events.activeEvents.map(event => (
-            <div className="text-xs text-blue-300 mb-1" key={event.id}>
-              <div className="flex justify-between">
-                <span className="font-medium">{event.name}</span>
-                <span className="text-gray-500">{event.remainingDays}天</span>
-              </div>
-              <div className="text-[10px] text-gray-400">
-                {event.description}
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* 满意度 & 人口 */}
-      <div className="pb-2 mb-2 border-b border-gray-700">
-        <div className="text-xs text-gray-400 mb-1">市民状态</div>
-        <div className="text-xs text-gray-300 space-y-1">
+      {/* 市民状态 */}
+      <GamePanelDivider />
+      <AccordionSection
+        defaultOpen
+        icon={<Users className="text-[var(--game-text-muted)]" size={14} />}
+        title="市民状态"
+      >
+        <div className="text-xs text-[var(--game-text)] space-y-1">
           <div className="flex justify-between items-center">
-            <span>满意度</span>
+            <span className="flex items-center gap-1">
+              <SmilePlus size={12} />
+              满意度
+            </span>
             <span className={satisfactionColor(satisfaction)}>
               {Math.round(satisfaction)}%
             </span>
@@ -157,10 +180,10 @@ export function InfoPanel() {
               <span
                 className={
                   popTrend === '+'
-                    ? 'text-green-400'
+                    ? 'text-[var(--game-green)]'
                     : popTrend === '-'
-                      ? 'text-red-400'
-                      : 'text-gray-500'
+                      ? 'text-[var(--game-red)]'
+                      : 'text-[var(--game-text-muted)]'
                 }
               >
                 {popTrend}
@@ -168,11 +191,39 @@ export function InfoPanel() {
             </span>
           </div>
         </div>
-      </div>
+      </AccordionSection>
+
+      {/* 当前事件 */}
+      {events.activeEvents.length > 0 && (
+        <>
+          <GamePanelDivider />
+          <AccordionSection defaultOpen title="当前事件">
+            {events.activeEvents.map(event => (
+              <div
+                className="text-xs text-[var(--game-blue)] mb-1"
+                key={event.id}
+              >
+                <div className="flex justify-between">
+                  <span className="font-medium">{event.name}</span>
+                  <span className="text-[var(--game-text-muted)]">
+                    {event.remainingDays}天
+                  </span>
+                </div>
+                <div className="text-[10px] text-[var(--game-text-muted)]">
+                  {event.description}
+                </div>
+              </div>
+            ))}
+          </AccordionSection>
+        </>
+      )}
 
       {/* 资源市场 */}
-      <div className="pb-2 mb-2 border-b border-gray-700">
-        <div className="text-xs text-gray-400 mb-1">资源市场</div>
+      <GamePanelDivider />
+      <AccordionSection
+        icon={<BarChart3 className="text-[var(--game-text-muted)]" size={14} />}
+        title="资源市场"
+      >
         <div className="space-y-1.5">
           <ResourceBar
             demand={resources.labor.demand}
@@ -193,18 +244,16 @@ export function InfoPanel() {
             supply={resources.services.supply}
           />
         </div>
-      </div>
+      </AccordionSection>
 
-      {/* 建设建议 */}
-      <div className="pb-2 mb-2 border-b border-gray-700">
-        <div className="text-xs text-gray-400 mb-1">建设需求</div>
-        <div className="text-xs text-gray-300 space-y-0.5">
+      {/* 建设需求 */}
+      <GamePanelDivider />
+      <AccordionSection title="建设需求">
+        <div className="text-xs text-[var(--game-text)] space-y-0.5">
           <div className="flex justify-between">
             <span>住宅</span>
             <span
-              className={
-                DEMAND_TEXT_COLORS[economy.demandIndicators.residential]
-              }
+              className={DEMAND_TEXT_COLORS[economy.demandIndicators.residential]}
             >
               {DEMAND_LABELS[economy.demandIndicators.residential]}
             </span>
@@ -212,9 +261,7 @@ export function InfoPanel() {
           <div className="flex justify-between">
             <span>商业</span>
             <span
-              className={
-                DEMAND_TEXT_COLORS[economy.demandIndicators.commercial]
-              }
+              className={DEMAND_TEXT_COLORS[economy.demandIndicators.commercial]}
             >
               {DEMAND_LABELS[economy.demandIndicators.commercial]}
             </span>
@@ -222,20 +269,18 @@ export function InfoPanel() {
           <div className="flex justify-between">
             <span>工业</span>
             <span
-              className={
-                DEMAND_TEXT_COLORS[economy.demandIndicators.industrial]
-              }
+              className={DEMAND_TEXT_COLORS[economy.demandIndicators.industrial]}
             >
               {DEMAND_LABELS[economy.demandIndicators.industrial]}
             </span>
           </div>
         </div>
-      </div>
+      </AccordionSection>
 
-      {/* 地图统计 */}
-      <div className="pb-2 mb-2 border-b border-gray-700">
-        <div className="text-xs text-gray-400 mb-1">城市概况</div>
-        <div className="text-xs text-gray-300 space-y-0.5">
+      {/* 城市概况 */}
+      <GamePanelDivider />
+      <AccordionSection title="城市概况">
+        <div className="text-xs text-[var(--game-text)] space-y-0.5">
           <div className="flex justify-between">
             <span>道路</span>
             <span>{counts[TileType.Road]}</span>
@@ -252,104 +297,34 @@ export function InfoPanel() {
             <span>工业</span>
             <span>{counts[TileType.Industrial]}</span>
           </div>
-          <div className="flex justify-between pt-1 border-t border-gray-700/50">
+          <GamePanelDivider className="my-1 opacity-30" />
+          <div className="flex justify-between">
             <span>土地利用</span>
             <span>{usage}%</span>
           </div>
         </div>
-      </div>
+      </AccordionSection>
 
       {/* 道路连接 */}
       {connectionStats.total > 0 && (
-        <div className="pb-2 mb-2 border-b border-gray-700">
-          <div className="text-xs text-gray-400 mb-1">道路连接</div>
-          <div className="text-xs text-gray-300 space-y-0.5">
-            <div className="flex justify-between">
-              <span className="text-green-400">已连接</span>
-              <span>{connectionStats.connected}</span>
-            </div>
-            {connectionStats.disconnected > 0 && (
+        <>
+          <GamePanelDivider />
+          <AccordionSection title="道路连接">
+            <div className="text-xs text-[var(--game-text)] space-y-0.5">
               <div className="flex justify-between">
-                <span className="text-red-400">未连接</span>
-                <span>{connectionStats.disconnected}</span>
+                <span className="text-[var(--game-green)]">已连接</span>
+                <span>{connectionStats.connected}</span>
               </div>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* 悬停信息 */}
-      <div>
-        <div className="text-xs text-gray-400 mb-1">当前位置</div>
-        {hoveredTile && hoveredTileData ? (
-          <div className="text-xs text-gray-300">
-            <div>
-              坐标: ({hoveredTile.x}, {hoveredTile.y})
-            </div>
-            <div>类型: {TILE_LABELS[hoveredTileData.type]}</div>
-            <div className="text-gray-400">
-              地形: {TERRAIN_LABELS[hoveredTileData.terrain]}
-            </div>
-            {terrainEffectText(hoveredTileData.terrain) && (
-              <div className="text-yellow-400 text-[10px]">
-                {terrainEffectText(hoveredTileData.terrain)}
-              </div>
-            )}
-            {hoveredTileData.type !== TileType.Empty &&
-              hoveredTileData.type !== TileType.Road && (
-                <>
-                  <div className="text-gray-400">
-                    等级: Lv{hoveredTileData.level}
-                  </div>
-                  <div
-                    className={
-                      hoveredTileData.connected
-                        ? 'text-green-400'
-                        : 'text-red-400'
-                    }
-                  >
-                    {hoveredTileData.connected ? '已连接道路' : '未连接道路'}
-                  </div>
-                  {hoveredTileData.connected && (
-                    <div className="text-gray-400">
-                      效率:{' '}
-                      {Math.round(
-                        (hoveredTileData.type === TileType.Residential
-                          ? efficiencyByType.residential
-                          : hoveredTileData.type === TileType.Commercial
-                            ? efficiencyByType.commercial
-                            : efficiencyByType.industrial) * 100
-                      )}
-                      %
-                    </div>
-                  )}
-                  {hoveredTileData.level < MAX_BUILDING_LEVEL && (
-                    <div className="text-gray-500 text-[10px]">
-                      升级费用: $
-                      {Math.ceil(
-                        (BUILDING_COSTS[
-                          hoveredTileData.type as keyof typeof BUILDING_COSTS
-                        ] ?? 0) *
-                          (Number.isFinite(
-                            TERRAIN_BUILD_COST_MULTIPLIER[
-                              hoveredTileData.terrain
-                            ]
-                          )
-                            ? TERRAIN_BUILD_COST_MULTIPLIER[
-                                hoveredTileData.terrain
-                              ]
-                            : 1) *
-                          UPGRADE_COST_MULTIPLIER[hoveredTileData.level]
-                      )}
-                    </div>
-                  )}
-                </>
+              {connectionStats.disconnected > 0 && (
+                <div className="flex justify-between">
+                  <span className="text-[var(--game-red)]">未连接</span>
+                  <span>{connectionStats.disconnected}</span>
+                </div>
               )}
-          </div>
-        ) : (
-          <div className="text-xs text-gray-500">无</div>
-        )}
-      </div>
+            </div>
+          </AccordionSection>
+        </>
+      )}
     </GamePanel>
   )
 }

@@ -15,6 +15,7 @@ export async function MainWindow() {
     center: true,
     movable: true,
     resizable: false,
+    frame: false,
     autoHideMenuBar: true,
 
     webPreferences: {

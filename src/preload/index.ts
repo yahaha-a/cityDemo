@@ -1,4 +1,4 @@
-import { contextBridge } from 'electron'
+import { contextBridge, ipcRenderer } from 'electron'
 
 declare global {
   interface Window {
@@ -9,6 +9,7 @@ declare global {
 const API = {
   sayHelloFromBridge: () => console.log('\nHello from bridgeAPI!\n\n'),
   username: process.env.USER,
+  quit: () => ipcRenderer.send('app-quit'),
 }
 
 contextBridge.exposeInMainWorld('App', API)

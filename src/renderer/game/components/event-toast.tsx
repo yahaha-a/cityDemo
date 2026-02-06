@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { MILESTONES } from '../constants'
 import { useEvents, useMilestones } from '../hooks/use-game-selector'
+import { Trophy, Bell } from 'lucide-react'
+import { cn } from 'renderer/lib/utils'
 
 interface ToastMessage {
   id: number
@@ -81,18 +83,26 @@ export function EventToast() {
   if (toasts.length === 0) return null
 
   return (
-    <div className="absolute top-16 left-1/2 -translate-x-1/2 flex flex-col gap-2 pointer-events-none z-50">
+    <div className="absolute top-12 left-1/2 -translate-x-1/2 flex flex-col gap-2 pointer-events-none z-50">
       {toasts.map(toast => (
         <div
-          className={`px-4 py-2 rounded-lg text-sm font-medium shadow-lg animate-[fadeIn_0.3s_ease-in] ${
+          className={cn(
+            'px-4 py-2 rounded-[var(--game-radius-md)] text-sm font-medium shadow-[var(--game-shadow-panel)] flex items-center gap-2',
             toast.type === 'milestone'
-              ? 'bg-yellow-600/90 text-yellow-100'
+              ? 'game-parchment-bg border-2 border-[var(--game-gold)] text-[var(--game-text-heading)] animate-[stampIn_0.4s_ease-out]'
               : toast.type === 'event_start'
-                ? 'bg-blue-600/90 text-blue-100'
-                : 'bg-gray-600/90 text-gray-100'
-          }`}
+                ? 'game-parchment-bg border border-[var(--game-blue)] text-[var(--game-text)] animate-[slideDown_0.3s_ease-out]'
+                : 'bg-[var(--game-parchment-dark)] border border-[var(--game-wood)]/40 text-[var(--game-text-muted)] animate-[slideDown_0.3s_ease-out]'
+          )}
           key={toast.id}
         >
+          {toast.type === 'milestone' ? (
+            <span className="game-seal bg-[var(--game-gold)] text-white w-6 h-6">
+              <Trophy size={12} />
+            </span>
+          ) : toast.type === 'event_start' ? (
+            <Bell className="text-[var(--game-blue)]" size={14} />
+          ) : null}
           {toast.text}
         </div>
       ))}

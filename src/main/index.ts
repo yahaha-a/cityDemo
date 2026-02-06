@@ -1,4 +1,4 @@
-import { app } from 'electron'
+import { app, ipcMain } from 'electron'
 
 import { makeAppWithSingleInstanceLock } from 'lib/electron-app/factories/app/instance'
 import { makeAppSetup } from 'lib/electron-app/factories/app/setup'
@@ -6,6 +6,8 @@ import { loadReactDevtools } from 'lib/electron-app/utils'
 import { ENVIRONMENT } from 'shared/constants'
 import { MainWindow } from './windows/main'
 import { waitFor } from 'shared/utils'
+
+ipcMain.on('app-quit', () => app.quit())
 
 makeAppWithSingleInstanceLock(async () => {
   await app.whenReady()

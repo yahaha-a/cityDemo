@@ -67,7 +67,6 @@ export class IsometricRenderer {
     this.clear()
     this.renderMap(state)
     this.renderHover(state)
-    this.renderCameraInfo(state.camera)
   }
 
   private clear(): void {
@@ -472,13 +471,4 @@ export class IsometricRenderer {
     this.ctx.fill()
   }
 
-  private renderCameraInfo(camera: Camera): void {
-    this.ctx.fillStyle = 'rgba(255, 255, 255, 0.6)'
-    this.ctx.font = '12px monospace'
-    this.ctx.fillText(
-      `Zoom: ${(camera.zoom * 100).toFixed(0)}% | WASD/拖拽平移 | 滚轮缩放 | Home重置`,
-      10,
-      this.canvas.height - 10
-    )
-  }
 }
