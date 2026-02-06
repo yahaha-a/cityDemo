@@ -3,6 +3,8 @@ import {
   TerrainType,
   ToolType,
   toolToTileType,
+  isFacilityType,
+  isCoreBuilding,
 } from 'shared/game-types'
 import {
   BUILDING_COSTS,
@@ -12,8 +14,10 @@ import {
   UPGRADE_COST_MULTIPLIER,
   UPGRADE_MIN_EFFICIENCY,
 } from '../constants'
+import { getFacilityTemplate } from '../constants'
 import type { GameStateManager } from '../engine/game-state'
 import type { RoadSystem } from './road-system'
+import type { FacilitySystem } from './facility-system'
 import { isInBounds } from '../input/coordinate-utils'
 
 /**
@@ -22,10 +26,15 @@ import { isInBounds } from '../input/coordinate-utils'
 export class BuildingSystem {
   private stateManager: GameStateManager
   private roadSystem: RoadSystem
+  private facilitySystem: FacilitySystem | null = null
 
   constructor(stateManager: GameStateManager, roadSystem: RoadSystem) {
     this.stateManager = stateManager
     this.roadSystem = roadSystem
+  }
+
+  setFacilitySystem(facilitySystem: FacilitySystem): void {
+    this.facilitySystem = facilitySystem
   }
 
   /**
@@ -55,6 +64,11 @@ export class BuildingSystem {
     // 水域不可建造
     if (currentTile.terrain === TerrainType.Water) return false
 
+    // 设施类型需要额外检查
+    if (isFacilityType(tileType)) {
+      return this.buildFacility(x, y, tileType)
+    }
+
     const baseCost = BUILDING_COSTS[tileType as keyof typeof BUILDING_COSTS]
     if (baseCost === undefined) return false
 
@@ -65,8 +79,33 @@ export class BuildingSystem {
     if (!this.stateManager.spendMoney(actualCost)) return false
 
     this.stateManager.setTileAt(x, y, tileType, 1)
+    this.roadSystem.updateLocalConnections(x, y)
 
-    // 更新道路连接状态（仅局部）
+    return true
+  }
+
+  private buildFacility(x: number, y: number, tileType: TileType): boolean {
+    // 检查设施是否已解锁
+    if (
+      this.facilitySystem &&
+      !this.facilitySystem.isFacilityUnlocked(tileType)
+    ) {
+      return false
+    }
+
+    const template = getFacilityTemplate(tileType)
+    if (!template) return false
+
+    const currentTile = this.stateManager.getTileAt(x, y)
+    if (!currentTile) return false
+
+    const terrainMult = TERRAIN_BUILD_COST_MULTIPLIER[currentTile.terrain]
+    if (!Number.isFinite(terrainMult)) return false
+
+    const actualCost = Math.ceil(template.buildCost * terrainMult)
+    if (!this.stateManager.spendMoney(actualCost)) return false
+
+    this.stateManager.setTileAt(x, y, tileType, 1)
     this.roadSystem.updateLocalConnections(x, y)
 
     return true
@@ -76,29 +115,39 @@ export class BuildingSystem {
     const currentTile = this.stateManager.getTileAt(x, y)
     if (!currentTile || currentTile.type === TileType.Empty) return false
 
-    // 计算退款：基础成本 + 升级投入
-    const baseCost =
-      BUILDING_COSTS[currentTile.type as keyof typeof BUILDING_COSTS]
-    if (baseCost !== undefined) {
-      const terrainMult = TERRAIN_BUILD_COST_MULTIPLIER[currentTile.terrain]
-      const mult = Number.isFinite(terrainMult) ? terrainMult : 1
-      let totalInvested = Math.ceil(baseCost * mult)
-
-      // 加上升级投入的费用
-      for (let lv = 2; lv <= currentTile.level; lv++) {
-        totalInvested += Math.ceil(
-          baseCost * mult * UPGRADE_COST_MULTIPLIER[lv - 1]
+    // 计算退款
+    if (isFacilityType(currentTile.type)) {
+      // 设施退款
+      const template = getFacilityTemplate(currentTile.type)
+      if (template) {
+        const terrainMult = TERRAIN_BUILD_COST_MULTIPLIER[currentTile.terrain]
+        const mult = Number.isFinite(terrainMult) ? terrainMult : 1
+        const totalInvested = Math.ceil(template.buildCost * mult)
+        this.stateManager.addMoney(
+          Math.floor(totalInvested * DEMOLISH_REFUND_RATIO)
         )
       }
+    } else {
+      const baseCost =
+        BUILDING_COSTS[currentTile.type as keyof typeof BUILDING_COSTS]
+      if (baseCost !== undefined) {
+        const terrainMult = TERRAIN_BUILD_COST_MULTIPLIER[currentTile.terrain]
+        const mult = Number.isFinite(terrainMult) ? terrainMult : 1
+        let totalInvested = Math.ceil(baseCost * mult)
 
-      this.stateManager.addMoney(
-        Math.floor(totalInvested * DEMOLISH_REFUND_RATIO)
-      )
+        for (let lv = 2; lv <= currentTile.level; lv++) {
+          totalInvested += Math.ceil(
+            baseCost * mult * UPGRADE_COST_MULTIPLIER[lv - 1]
+          )
+        }
+
+        this.stateManager.addMoney(
+          Math.floor(totalInvested * DEMOLISH_REFUND_RATIO)
+        )
+      }
     }
 
     this.stateManager.setTileAt(x, y, TileType.Empty, 0)
-
-    // 更新道路连接状态（仅局部）
     this.roadSystem.updateLocalConnections(x, y)
 
     return true
@@ -108,21 +157,16 @@ export class BuildingSystem {
     const tile = this.stateManager.getTileAt(x, y)
     if (!tile) return false
 
-    // 只有建筑可升级（不含道路和空地）
-    if (tile.type === TileType.Empty || tile.type === TileType.Road)
-      return false
+    // 只有核心建筑可升级（不含道路、空地、设施）
+    if (!isCoreBuilding(tile.type)) return false
 
-    // 检查等级上限
     if (tile.level >= MAX_BUILDING_LEVEL) return false
 
-    // Lv3 需里程碑解锁
     const state = this.stateManager.getState()
     if (tile.level === 2 && !state.milestones.upgradeLv3Unlocked) return false
 
-    // 必须已连接
     if (!tile.connected) return false
 
-    // 效率检查
     const efficiency =
       tile.type === TileType.Residential
         ? state.economy.efficiencyByType.residential
@@ -131,7 +175,6 @@ export class BuildingSystem {
           : state.economy.efficiencyByType.industrial
     if (efficiency < UPGRADE_MIN_EFFICIENCY) return false
 
-    // 计算升级费用
     const baseCost = BUILDING_COSTS[tile.type as keyof typeof BUILDING_COSTS]
     if (baseCost === undefined) return false
 
@@ -145,5 +188,25 @@ export class BuildingSystem {
 
     this.stateManager.upgradeTileLevel(x, y)
     return true
+  }
+
+  /** 获取建造成本（考虑设施和地形） */
+  getBuildCost(
+    tileType: TileType,
+    terrain: import('shared/game-types').TerrainType
+  ): number | null {
+    if (isFacilityType(tileType)) {
+      const template = getFacilityTemplate(tileType)
+      if (!template) return null
+      const terrainMult = TERRAIN_BUILD_COST_MULTIPLIER[terrain]
+      if (!Number.isFinite(terrainMult)) return null
+      return Math.ceil(template.buildCost * terrainMult)
+    }
+
+    const baseCost = BUILDING_COSTS[tileType as keyof typeof BUILDING_COSTS]
+    if (baseCost === undefined) return null
+    const terrainMult = TERRAIN_BUILD_COST_MULTIPLIER[terrain]
+    if (!Number.isFinite(terrainMult)) return null
+    return Math.ceil(baseCost * terrainMult)
   }
 }

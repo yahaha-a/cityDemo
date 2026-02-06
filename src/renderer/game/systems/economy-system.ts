@@ -7,6 +7,9 @@ import {
 } from 'shared/game-types'
 import type { GameStateManager } from '../engine/game-state'
 import type { EventSystem } from './event-system'
+import type { PolicySystem } from './policy-system'
+import type { CrisisSystem } from './crisis-system'
+import type { SpecializationSystem } from './specialization-system'
 import {
   MAP_WIDTH,
   MAP_HEIGHT,
@@ -59,6 +62,9 @@ function toDemandLevel(ratio: number): DemandLevel {
 export class EconomySystem {
   private stateManager: GameStateManager
   private eventSystem: EventSystem | null = null
+  private policySystem: PolicySystem | null = null
+  private crisisSystem: CrisisSystem | null = null
+  private specializationSystem: SpecializationSystem | null = null
 
   constructor(stateManager: GameStateManager) {
     this.stateManager = stateManager
@@ -68,14 +74,77 @@ export class EconomySystem {
     this.eventSystem = eventSystem
   }
 
+  setPolicySystem(policySystem: PolicySystem): void {
+    this.policySystem = policySystem
+  }
+
+  setCrisisSystem(crisisSystem: CrisisSystem): void {
+    this.crisisSystem = crisisSystem
+  }
+
+  setSpecializationSystem(specializationSystem: SpecializationSystem): void {
+    this.specializationSystem = specializationSystem
+  }
+
   /**
    * 计算每日经济数据并结算
    */
   processDailyEconomy(): void {
     const state = this.stateManager.getState()
-    const { map, economy } = state
+    const { map, economy, synergy, facilities, tech } = state
     const currentPopulation = economy.population
     const prevSatisfaction = economy.satisfaction
+
+    // === 聚合所有系统的乘数 ===
+    const policyIncomeMult =
+      this.policySystem?.getAggregatedEffect('income_multiplier') ?? 1
+    const policyExpenseMult =
+      this.policySystem?.getAggregatedEffect('expense_multiplier') ?? 1
+    const policySatisfaction =
+      this.policySystem?.getAggregatedEffect('satisfaction') ?? 0
+    const policyGrowthMult =
+      this.policySystem?.getAggregatedEffect('growth_multiplier') ?? 1
+    const policyCapacityMult =
+      this.policySystem?.getAggregatedEffect('capacity_multiplier') ?? 1
+    const policyIndustrialMult =
+      this.policySystem?.getAggregatedEffect('industrial_multiplier') ?? 1
+    const policyCommercialMult =
+      this.policySystem?.getAggregatedEffect('commercial_multiplier') ?? 1
+    const policyRoadMaintMult =
+      this.policySystem?.getAggregatedEffect('road_maintenance_multiplier') ?? 1
+    const crisisIncomeMult =
+      this.crisisSystem?.getActiveMultiplier('income_multiplier_temp') ?? 1
+    const crisisIndustrialMult =
+      this.crisisSystem?.getActiveMultiplier('industrial_multiplier_temp') ?? 1
+    const crisisServicesMult =
+      this.crisisSystem?.getActiveMultiplier('services_multiplier_temp') ?? 1
+
+    const specIndustrialMult =
+      this.specializationSystem?.getEffectValue('industrial_multiplier') ?? 1
+    const specCommercialMult =
+      this.specializationSystem?.getEffectValue('commercial_multiplier') ?? 1
+    const specIncomeMult =
+      this.specializationSystem?.getEffectValue('income_multiplier') ?? 1
+    const specCapacityMult =
+      this.specializationSystem?.getEffectValue('capacity_multiplier') ?? 1
+    const specSatisfaction =
+      this.specializationSystem?.getEffectValue('satisfaction') ?? 0
+    const specAllProdMult =
+      this.specializationSystem?.getEffectValue('all_production_multiplier') ??
+      1
+
+    // 科技永久乘数
+    const techIndustrialEff =
+      tech.permanentMultipliers.industrial_efficiency ?? 1
+    const techCommercialIncome =
+      tech.permanentMultipliers.commercial_income ?? 1
+
+    // 协同乘数
+    const synergyIncomeRes = synergy.incomeMultByType.residential
+    const synergyIncomeCom = synergy.incomeMultByType.commercial
+    const synergyEffCom = synergy.effMultByType.commercial
+    const synergyEffInd = synergy.effMultByType.industrial
+    const synergySatisfaction = synergy.globalSatisfactionMod
 
     // === 步骤 1 - 普查（支持等级和地形加权） ===
     let capacityWeighted = 0
@@ -92,6 +161,8 @@ export class EconomySystem {
     let connCom = 0
     let connInd = 0
     let waterAdjacentResCount = 0
+    let facilSatTotal = 0
+    let facilSatCount = 0
 
     for (let y = 0; y < MAP_HEIGHT; y++) {
       for (let x = 0; x < MAP_WIDTH; x++) {
@@ -106,11 +177,23 @@ export class EconomySystem {
               const li = tile.level - 1
               const capMult = LEVEL_CAPACITY_MULTIPLIER[li]
               const incMult = LEVEL_INCOME_MULTIPLIER[li]
-              capacityWeighted += POP_CAPACITY_PER_RESIDENTIAL * capMult
+              // 设施覆盖容量乘数
+              const facCoverage = facilities.coverage[`${x},${y}`]
+              const facCapMult = facCoverage?.capacityMultiplier ?? 1
+              capacityWeighted +=
+                POP_CAPACITY_PER_RESIDENTIAL *
+                capMult *
+                policyCapacityMult *
+                specCapacityMult *
+                facCapMult
               resIncomeWeighted += BASE_RESIDENTIAL_TAX * incMult
-              // 检查水域相邻
               if (this.hasAdjacentWater(x, y)) {
                 waterAdjacentResCount++
+              }
+              // 收集设施满意度修正（避免步骤5的二次遍历）
+              if (facCoverage) {
+                facilSatTotal += facCoverage.satisfactionMod
+                facilSatCount++
               }
             }
             break
@@ -142,11 +225,14 @@ export class EconomySystem {
               indIncomeWeighted += BASE_INDUSTRIAL_INCOME * incMult
             }
             break
+          default:
+            // 设施类型不参与经济产出计算
+            break
         }
       }
     }
 
-    // === 步骤 2 - 供需计算（含事件乘数） ===
+    // === 步骤 2 - 供需计算（含事件+政策+危机+特色乘数） ===
     const evtLaborSupplyMult = this.getEventMult('laborSupplyMultiplier')
     const evtLaborDemandMult = this.getEventMult('laborDemandMultiplier')
     const evtGoodsSupplyMult = this.getEventMult('goodsSupplyMultiplier')
@@ -160,11 +246,29 @@ export class EconomySystem {
     const laborDemand =
       (laborDemandComWeighted + laborDemandIndWeighted) * evtLaborDemandMult
 
-    const goodsSupply = goodsSupplyWeighted * evtGoodsSupplyMult
+    // 工业产出乘数: 事件 × 政策 × 危机 × 特色 × 科技 × 协同 × 全产出
+    const industrialProdMult =
+      evtGoodsSupplyMult *
+      policyIndustrialMult *
+      crisisIndustrialMult *
+      specIndustrialMult *
+      techIndustrialEff *
+      synergyEffInd *
+      specAllProdMult
+
+    const goodsSupply = goodsSupplyWeighted * industrialProdMult
     const goodsDemand = goodsDemandWeighted * evtGoodsDemandMult
 
-    const servicesSupply = servicesSupplyWeighted * evtServicesSupplyMult
-    // 服务需求基于实际人口
+    // 商业产出乘数
+    const commercialProdMult =
+      evtServicesSupplyMult *
+      policyCommercialMult *
+      crisisServicesMult *
+      specCommercialMult *
+      synergyEffCom *
+      specAllProdMult
+
+    const servicesSupply = servicesSupplyWeighted * commercialProdMult
     const servicesDemand =
       currentPopulation * SERVICES_DEMAND_PER_POP * evtServicesDemandMult
 
@@ -180,16 +284,27 @@ export class EconomySystem {
     const actualServicesRatio = safeRatio(actualServices, servicesDemand)
     const residentialEff = actualServicesRatio
 
-    // === 步骤 4 - 收入（含事件乘数） ===
+    // === 步骤 4 - 收入（含所有系统乘数） ===
+    const totalIncomeMult =
+      evtIncomeMult * policyIncomeMult * crisisIncomeMult * specIncomeMult
+
     const income =
-      (resIncomeWeighted * residentialEff +
-        comIncomeWeighted * commercialEff +
+      (resIncomeWeighted * residentialEff * synergyIncomeRes +
+        comIncomeWeighted *
+          commercialEff *
+          synergyIncomeCom *
+          techCommercialIncome +
         indIncomeWeighted * industrialEff) *
-      evtIncomeMult
-    const expenses = roadCount * ROAD_MAINTENANCE_COST * evtRoadMaintMult
+      totalIncomeMult
+
+    // 支出: 道路维护 + 设施维护
+    const roadExpenses =
+      roadCount * ROAD_MAINTENANCE_COST * evtRoadMaintMult * policyRoadMaintMult
+    const facilityExpenses = facilities.totalMaintenance
+    const expenses = (roadExpenses + facilityExpenses) * policyExpenseMult
     const netRevenue = Math.round(income - expenses)
 
-    // === 步骤 5 - 满意度 ===
+    // === 步骤 5 - 满意度（含政策、协同、设施、特色修正） ===
     const employmentRatio = safeRatio(laborDemand, laborSupply)
     const goodsRatio = safeRatio(actualGoods, goodsDemand)
     const servicesRatio = actualServicesRatio
@@ -213,10 +328,27 @@ export class EconomySystem {
         (waterAdjacentResCount * WATER_ADJACENCY_SATISFACTION_BONUS) / connRes
     }
 
+    // 协同满意度修正
+    rawSatisfaction += synergySatisfaction
+
+    // 政策满意度修正
+    rawSatisfaction += policySatisfaction
+
+    // 特色满意度修正
+    rawSatisfaction += specSatisfaction
+
+    // 设施满意度修正（步骤1中已收集）
+    if (facilSatCount > 0) {
+      rawSatisfaction += facilSatTotal / facilSatCount
+    }
+
     const satisfaction = Math.min(
       100,
-      prevSatisfaction * (1 - SATISFACTION_SMOOTHING) +
-        rawSatisfaction * SATISFACTION_SMOOTHING
+      Math.max(
+        0,
+        prevSatisfaction * (1 - SATISFACTION_SMOOTHING) +
+          rawSatisfaction * SATISFACTION_SMOOTHING
+      )
     )
 
     // === 步骤 6 - 人口动态 ===
@@ -225,42 +357,41 @@ export class EconomySystem {
     let newPopulation = currentPopulation
 
     if (connRes > 0 && currentPopulation === 0) {
-      // 种子人口启动经济
       newPopulation = INITIAL_POP_SEED
       populationFloat = 0
     } else if (capacity > 0 && currentPopulation > 0) {
       if (satisfaction >= NEUTRAL_SATISFACTION) {
-        // 人口增长
         const happinessFactor =
           (satisfaction - NEUTRAL_SATISFACTION) / (100 - NEUTRAL_SATISFACTION)
         const roomFactor = Math.max(
           0,
           (capacity - currentPopulation) / capacity
         )
-        const growth = MAX_GROWTH_RATE * capacity * happinessFactor * roomFactor
+        const growth =
+          MAX_GROWTH_RATE *
+          capacity *
+          happinessFactor *
+          roomFactor *
+          policyGrowthMult
         populationFloat += growth
       } else {
-        // 人口下降
         const unhappinessFactor =
           (NEUTRAL_SATISFACTION - satisfaction) / NEUTRAL_SATISFACTION
         const decline = MAX_DECLINE_RATE * currentPopulation * unhappinessFactor
         populationFloat -= decline
       }
 
-      // 处理小数累积
       const intPart = Math.trunc(populationFloat)
       if (intPart !== 0) {
         newPopulation = Math.max(0, currentPopulation + intPart)
         populationFloat -= intPart
       }
 
-      // 不超过容量
       if (newPopulation > capacity) {
         newPopulation = Math.floor(capacity)
         populationFloat = 0
       }
     } else if (capacity === 0) {
-      // 无住宅，人口归零
       newPopulation = 0
       populationFloat = 0
     }
@@ -288,7 +419,6 @@ export class EconomySystem {
       },
     }
 
-    // 更新状态（addMoneySilent 不触发 notify，由 updateEconomy 统一触发一次）
     this.stateManager.addMoneySilent(netRevenue)
     this.stateManager.updateEconomy({
       income: Math.round(income),

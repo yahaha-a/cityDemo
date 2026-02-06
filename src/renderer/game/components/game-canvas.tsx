@@ -9,7 +9,41 @@ import { EconomySystem } from '../systems/economy-system'
 import { EventSystem } from '../systems/event-system'
 import { MilestoneSystem } from '../systems/milestone-system'
 import { SaveSystem } from '../systems/save-system'
+import { SynergySystem } from '../systems/synergy-system'
+import { FacilitySystem } from '../systems/facility-system'
+import { PolicySystem } from '../systems/policy-system'
+import { CrisisSystem } from '../systems/crisis-system'
+import { TechSystem } from '../systems/tech-system'
+import { SpecializationSystem } from '../systems/specialization-system'
 import { InputHandler } from '../input/input-handler'
+
+/** 注入系统间的运行时依赖 */
+function wireSystemDependencies(systems: {
+  economySystem: EconomySystem
+  eventSystem: EventSystem
+  policySystem: PolicySystem
+  crisisSystem: CrisisSystem
+  specializationSystem: SpecializationSystem
+  techSystem: TechSystem
+  synergySystem: SynergySystem
+}): void {
+  const {
+    economySystem,
+    eventSystem,
+    policySystem,
+    crisisSystem,
+    specializationSystem,
+    techSystem,
+    synergySystem,
+  } = systems
+  economySystem.setEventSystem(eventSystem)
+  economySystem.setPolicySystem(policySystem)
+  economySystem.setCrisisSystem(crisisSystem)
+  economySystem.setSpecializationSystem(specializationSystem)
+  crisisSystem.setPolicySystem(policySystem)
+  techSystem.setPolicySystem(policySystem)
+  techSystem.setSynergySystem(synergySystem)
+}
 
 export interface GameEngine {
   stateManager: GameStateManager
@@ -20,6 +54,12 @@ export interface GameEngine {
   eventSystem: EventSystem
   milestoneSystem: MilestoneSystem
   saveSystem: SaveSystem
+  synergySystem: SynergySystem
+  facilitySystem: FacilitySystem
+  policySystem: PolicySystem
+  crisisSystem: CrisisSystem
+  techSystem: TechSystem
+  specializationSystem: SpecializationSystem
 }
 
 interface GameCanvasProps {
@@ -40,6 +80,12 @@ export function GameCanvas({ onEngineReady }: GameCanvasProps) {
     eventSystem: EventSystem
     milestoneSystem: MilestoneSystem
     saveSystem: SaveSystem
+    synergySystem: SynergySystem
+    facilitySystem: FacilitySystem
+    policySystem: PolicySystem
+    crisisSystem: CrisisSystem
+    techSystem: TechSystem
+    specializationSystem: SpecializationSystem
   } | null>(null)
   const [ready, setReady] = useState(false)
 
@@ -72,29 +118,58 @@ export function GameCanvas({ onEngineReady }: GameCanvasProps) {
       const stateManager = new GameStateManager()
       const renderer = new IsometricRenderer(canvas)
 
-      // 先创建无依赖的系统
+      // 创建所有系统实例
       const roadSystem = new RoadSystem(stateManager)
       const economySystem = new EconomySystem(stateManager)
       const mapSystem = new MapSystem(stateManager)
       const eventSystem = new EventSystem(stateManager)
       const saveSystem = new SaveSystem(stateManager)
+      const synergySystem = new SynergySystem(stateManager)
+      const facilitySystem = new FacilitySystem(stateManager)
+      const policySystem = new PolicySystem(stateManager)
+      const crisisSystem = new CrisisSystem(stateManager)
+      const techSystem = new TechSystem(stateManager)
+      const specializationSystem = new SpecializationSystem(stateManager)
 
-      // 注入事件系统到经济系统
-      economySystem.setEventSystem(eventSystem)
+      // 注入系统间依赖
+      //
+      // 依赖关系图:
+      //   Economy ← Event, Policy, Crisis, Specialization
+      //   Crisis  ← Policy
+      //   Tech    ← Policy, Synergy
+      //   Building ← Road, Facility
+      //   Milestone ← Event, Map (构造器注入)
+      //
+      wireSystemDependencies({
+        economySystem,
+        eventSystem,
+        policySystem,
+        crisisSystem,
+        specializationSystem,
+        techSystem,
+        synergySystem,
+      })
 
-      // 创建有依赖的系统
+      // 创建有构造器依赖的系统
       const milestoneSystem = new MilestoneSystem(
         stateManager,
         eventSystem,
         mapSystem
       )
       const buildingSystem = new BuildingSystem(stateManager, roadSystem)
+      buildingSystem.setFacilitySystem(facilitySystem)
+
       const gameLoop = new GameLoop(
         renderer,
         stateManager,
         economySystem,
         eventSystem,
-        milestoneSystem
+        milestoneSystem,
+        synergySystem,
+        facilitySystem,
+        policySystem,
+        crisisSystem,
+        techSystem
       )
 
       const inputHandler = new InputHandler(
@@ -116,6 +191,12 @@ export function GameCanvas({ onEngineReady }: GameCanvasProps) {
         eventSystem,
         milestoneSystem,
         saveSystem,
+        synergySystem,
+        facilitySystem,
+        policySystem,
+        crisisSystem,
+        techSystem,
+        specializationSystem,
       }
 
       inputHandler.attach()
@@ -157,6 +238,12 @@ export function GameCanvas({ onEngineReady }: GameCanvasProps) {
         eventSystem,
         milestoneSystem,
         saveSystem,
+        synergySystem,
+        facilitySystem,
+        policySystem,
+        crisisSystem,
+        techSystem,
+        specializationSystem,
       } = engineRef.current
       onEngineReady({
         stateManager,
@@ -167,6 +254,12 @@ export function GameCanvas({ onEngineReady }: GameCanvasProps) {
         eventSystem,
         milestoneSystem,
         saveSystem,
+        synergySystem,
+        facilitySystem,
+        policySystem,
+        crisisSystem,
+        techSystem,
+        specializationSystem,
       })
     }
   }, [ready, onEngineReady])

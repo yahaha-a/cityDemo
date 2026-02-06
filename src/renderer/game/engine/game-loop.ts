@@ -4,10 +4,18 @@ import type { IsometricRenderer } from '../renderer/isometric-renderer'
 import type { EconomySystem } from '../systems/economy-system'
 import type { EventSystem } from '../systems/event-system'
 import type { MilestoneSystem } from '../systems/milestone-system'
+import type { SynergySystem } from '../systems/synergy-system'
+import type { FacilitySystem } from '../systems/facility-system'
+import type { PolicySystem } from '../systems/policy-system'
+import type { CrisisSystem } from '../systems/crisis-system'
+import type { TechSystem } from '../systems/tech-system'
 import { DAY_DURATION_MS, TIME_SPEED_MULTIPLIERS } from '../constants'
 
 /**
  * 游戏主循环 - requestAnimationFrame
+ *
+ * 每日处理顺序：
+ * Events → Policies → Facilities → Synergy → Tech → Crisis → Economy → Milestones
  */
 export class GameLoop {
   private renderer: IsometricRenderer
@@ -15,6 +23,11 @@ export class GameLoop {
   private economySystem: EconomySystem
   private eventSystem: EventSystem
   private milestoneSystem: MilestoneSystem
+  private synergySystem: SynergySystem
+  private facilitySystem: FacilitySystem
+  private policySystem: PolicySystem
+  private crisisSystem: CrisisSystem
+  private techSystem: TechSystem
   private animFrameId = 0
   private running = false
   private lastTimestamp = 0
@@ -24,13 +37,23 @@ export class GameLoop {
     stateManager: GameStateManager,
     economySystem: EconomySystem,
     eventSystem: EventSystem,
-    milestoneSystem: MilestoneSystem
+    milestoneSystem: MilestoneSystem,
+    synergySystem: SynergySystem,
+    facilitySystem: FacilitySystem,
+    policySystem: PolicySystem,
+    crisisSystem: CrisisSystem,
+    techSystem: TechSystem
   ) {
     this.renderer = renderer
     this.stateManager = stateManager
     this.economySystem = economySystem
     this.eventSystem = eventSystem
     this.milestoneSystem = milestoneSystem
+    this.synergySystem = synergySystem
+    this.facilitySystem = facilitySystem
+    this.policySystem = policySystem
+    this.crisisSystem = crisisSystem
+    this.techSystem = techSystem
   }
 
   start(): void {
@@ -70,6 +93,9 @@ export class GameLoop {
 
     if (time.speed === TimeSpeed.Paused) return
 
+    // 如果有待处理的危机，暂停时间推进
+    if (state.challenge.pendingCrisis) return
+
     const speedMultiplier = TIME_SPEED_MULTIPLIERS[time.speed]
     let remaining = time.tickAccumulator + deltaMs * speedMultiplier
 
@@ -80,11 +106,24 @@ export class GameLoop {
     while (remaining >= DAY_DURATION_MS && daysAdvanced < maxDays) {
       remaining -= DAY_DURATION_MS
       this.stateManager.advanceDay()
-      // 每日顺序: 事件 → 经济 → 里程碑
+
+      // 每日顺序: 事件 → 政策 → 设施 → 协同 → 科技 → 危机 → 经济 → 里程碑
       this.eventSystem.processDailyEvents()
+      this.policySystem.processDailyPolicies()
+      this.facilitySystem.processDailyFacilities()
+      this.synergySystem.processDailySynergy()
+      this.techSystem.processDailyTech()
+      this.crisisSystem.processDailyCrisis()
       this.economySystem.processDailyEconomy()
       this.milestoneSystem.processDailyMilestones()
       daysAdvanced++
+
+      // 如果危机弹出，暂停后续推进
+      const currentState = this.stateManager.getState()
+      if (currentState.challenge.pendingCrisis) {
+        remaining = 0
+        break
+      }
     }
 
     if (daysAdvanced >= maxDays) {

@@ -1,5 +1,12 @@
 import type { GameState, Tile, Camera } from 'shared/game-types'
-import { TileType, ToolType, toolToTileType } from 'shared/game-types'
+import {
+  TileType,
+  ToolType,
+  toolToTileType,
+  isFacilityType,
+  isCoreBuilding,
+  isBuilding,
+} from 'shared/game-types'
 import {
   TILE_WIDTH,
   TILE_HEIGHT,
@@ -14,6 +21,7 @@ import {
   UPGRADE_COST_MULTIPLIER,
   MAX_BUILDING_LEVEL,
   UPGRADE_MIN_EFFICIENCY,
+  getFacilityTemplate,
 } from '../constants'
 import {
   gridToScreen,
@@ -157,17 +165,18 @@ export class IsometricRenderer {
       return
     }
 
-    const isBuilding = type !== TileType.Empty && type !== TileType.Road
+    const isBldg = isBuilding(type)
+    const isCore = isCoreBuilding(type)
 
     // 计算效率和渲染模式
     let efficiency = 1
     let dimmed = false
     let lowEfficiency = false
 
-    if (isBuilding) {
+    if (isBldg) {
       if (!connected) {
         dimmed = true
-      } else {
+      } else if (isCore) {
         efficiency =
           type === TileType.Residential
             ? efficiencyByType.residential
@@ -188,21 +197,51 @@ export class IsometricRenderer {
       lowEfficiency ? efficiency : 1
     )
 
-    // 低效率警示标记
-    if (isBuilding && connected && efficiency < 0.5) {
+    // 低效率警示标记（仅核心建筑）
+    if (isCore && connected && efficiency < 0.5) {
       this.ctx.fillStyle = 'rgba(255, 200, 50, 0.9)'
       this.ctx.font = `bold ${12 * zoom}px sans-serif`
       this.ctx.textAlign = 'center'
       this.ctx.fillText('!', sx, sy - height - 5 * zoom)
     }
 
-    // Lv2+ 建筑显示等级标签
-    if (isBuilding && level >= 2) {
+    // Lv2+ 核心建筑显示等级标签
+    if (isCore && level >= 2) {
       const labelY = sy - height - (efficiency < 0.5 ? 18 : 5) * zoom
       this.ctx.fillStyle = 'rgba(255, 255, 255, 0.85)'
       this.ctx.font = `bold ${10 * zoom}px sans-serif`
       this.ctx.textAlign = 'center'
       this.ctx.fillText(`Lv${level}`, sx, labelY)
+    }
+
+    // 设施类型显示图标标签
+    if (isFacilityType(type) && connected) {
+      const label = this.getFacilityLabel(type)
+      if (label) {
+        this.ctx.fillStyle = 'rgba(255, 255, 255, 0.9)'
+        this.ctx.font = `bold ${9 * zoom}px sans-serif`
+        this.ctx.textAlign = 'center'
+        this.ctx.fillText(label, sx, sy - height - 4 * zoom)
+      }
+    }
+  }
+
+  private getFacilityLabel(type: TileType): string | null {
+    switch (type) {
+      case TileType.Park:
+        return 'P'
+      case TileType.School:
+        return 'S'
+      case TileType.Hospital:
+        return 'H'
+      case TileType.FireStation:
+        return 'F'
+      case TileType.PoliceStation:
+        return 'PD'
+      case TileType.PowerPlant:
+        return 'PP'
+      default:
+        return null
     }
   }
 
@@ -341,21 +380,42 @@ export class IsometricRenderer {
     // 检查是否可以放置
     if (currentTool !== ToolType.Select) {
       if (currentTool === ToolType.Upgrade) {
-        // 升级工具高亮逻辑
         const canUpgrade = this.canUpgradeTile(tile, state)
         if (!canUpgrade) highlightColor = INVALID_COLOR
       } else {
         const targetType = toolToTileType[currentTool]
         if (targetType) {
-          const baseCost =
-            BUILDING_COSTS[targetType as keyof typeof BUILDING_COSTS]
-          if (baseCost !== undefined) {
-            const terrainMult = TERRAIN_BUILD_COST_MULTIPLIER[tile.terrain]
-            const canPlace =
-              currentTileType === TileType.Empty &&
-              Number.isFinite(terrainMult) &&
-              money >= Math.ceil(baseCost * terrainMult)
-            if (!canPlace) highlightColor = INVALID_COLOR
+          // 获取建造成本
+          if (isFacilityType(targetType)) {
+            const template = getFacilityTemplate(targetType)
+            if (!template) {
+              highlightColor = INVALID_COLOR
+            } else {
+              const isUnlocked =
+                !template.unlockTech ||
+                state.tech.researched.includes(template.unlockTech)
+              const terrainMult = TERRAIN_BUILD_COST_MULTIPLIER[tile.terrain]
+              const cost = Number.isFinite(terrainMult)
+                ? Math.ceil(template.buildCost * terrainMult)
+                : null
+              const canPlace =
+                currentTileType === TileType.Empty &&
+                cost !== null &&
+                money >= cost &&
+                isUnlocked
+              if (!canPlace) highlightColor = INVALID_COLOR
+            }
+          } else {
+            const baseCost =
+              BUILDING_COSTS[targetType as keyof typeof BUILDING_COSTS]
+            if (baseCost !== undefined) {
+              const terrainMult = TERRAIN_BUILD_COST_MULTIPLIER[tile.terrain]
+              const canPlace =
+                currentTileType === TileType.Empty &&
+                Number.isFinite(terrainMult) &&
+                money >= Math.ceil(baseCost * terrainMult)
+              if (!canPlace) highlightColor = INVALID_COLOR
+            }
           }
         } else if (currentTool === ToolType.Demolish) {
           if (currentTileType === TileType.Empty) {
@@ -369,8 +429,8 @@ export class IsometricRenderer {
   }
 
   private canUpgradeTile(tile: Tile, state: GameState): boolean {
-    if (tile.type === TileType.Empty || tile.type === TileType.Road)
-      return false
+    // 只有核心建筑可升级
+    if (!isCoreBuilding(tile.type)) return false
     if (tile.level >= MAX_BUILDING_LEVEL) return false
     if (tile.level === 2 && !state.milestones.upgradeLv3Unlocked) return false
     if (!tile.connected) return false

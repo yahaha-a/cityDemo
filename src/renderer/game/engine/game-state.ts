@@ -8,6 +8,12 @@ import {
   type EconomyState,
   type EventState,
   type MilestoneState,
+  type SynergyState,
+  type FacilityCoverageState,
+  type PolicyState,
+  type ChallengeState,
+  type TechState,
+  type SpecializationState,
   TileType,
   TerrainType,
   ToolType,
@@ -113,6 +119,66 @@ function createInitialMilestones(): MilestoneState {
   }
 }
 
+function createInitialSynergy(): SynergyState {
+  return {
+    tileEffects: {},
+    globalSatisfactionMod: 0,
+    incomeMultByType: { residential: 1, commercial: 1, industrial: 1 },
+    effMultByType: { residential: 1, commercial: 1, industrial: 1 },
+  }
+}
+
+function createInitialFacilities(): FacilityCoverageState {
+  return {
+    coverage: {},
+    totalMaintenance: 0,
+    totalResearchPoints: 0,
+    avgCrisisResistance: 0,
+  }
+}
+
+function createInitialPolicies(): PolicyState {
+  return {
+    activePolicies: [],
+    cooldowns: {},
+    unlockedPolicies: [],
+  }
+}
+
+function createInitialChallenge(): ChallengeState {
+  return {
+    challengeMode: false,
+    pendingCrisis: null,
+    activeCrises: [],
+    deficitDays: 0,
+    lowSatisfactionDays: 0,
+    gameOver: false,
+    gameWon: false,
+    winProgress: 0,
+    score: 0,
+  }
+}
+
+function createInitialTech(): TechState {
+  return {
+    researched: [],
+    currentResearch: null,
+    researchProgress: 0,
+    dailyRP: 0,
+    unlockedBuildings: [],
+    unlockedPolicies: [],
+    unlockedSpecializations: [],
+    permanentMultipliers: {},
+  }
+}
+
+function createInitialSpecialization(): SpecializationState {
+  return {
+    chosen: null,
+    available: [],
+  }
+}
+
 function createInitialState(): GameState {
   const mapSeed = Date.now()
   return {
@@ -127,6 +193,12 @@ function createInitialState(): GameState {
     mapSeed,
     events: createInitialEvents(),
     milestones: createInitialMilestones(),
+    synergy: createInitialSynergy(),
+    facilities: createInitialFacilities(),
+    policies: createInitialPolicies(),
+    challenge: createInitialChallenge(),
+    tech: createInitialTech(),
+    specialization: createInitialSpecialization(),
   }
 }
 
@@ -351,6 +423,50 @@ export class GameStateManager {
   /** 从完整状态恢复（用于存档加载） */
   loadState(state: GameState): void {
     this.state = state
+    this.notify()
+  }
+
+  /** 更新协同状态 */
+  updateSynergy(synergy: SynergyState): void {
+    this.state.synergy = synergy
+  }
+
+  /** 更新设施覆盖状态 */
+  updateFacilities(facilities: FacilityCoverageState): void {
+    this.state.facilities = facilities
+  }
+
+  /** 更新政策状态 */
+  updatePolicies(policies: PolicyState): void {
+    this.state.policies = policies
+    this.notify()
+  }
+
+  /** 更新危机/挑战状态 */
+  updateChallenge(challenge: ChallengeState): void {
+    this.state.challenge = challenge
+    this.notify()
+  }
+
+  /** 更新危机/挑战状态（不触发通知） */
+  updateChallengeSilent(challenge: ChallengeState): void {
+    this.state.challenge = challenge
+  }
+
+  /** 更新科技状态 */
+  updateTech(tech: TechState): void {
+    this.state.tech = tech
+    this.notify()
+  }
+
+  /** 更新科技状态（不触发通知） */
+  updateTechSilent(tech: TechState): void {
+    this.state.tech = tech
+  }
+
+  /** 更新城市特色状态 */
+  updateSpecialization(specialization: SpecializationState): void {
+    this.state.specialization = specialization
     this.notify()
   }
 

@@ -3,7 +3,7 @@ import { DemandLevel, TerrainType } from 'shared/game-types'
 import type { GameStateManager } from '../engine/game-state'
 import { EVENT_BASE_COOLDOWN, MAP_WIDTH, MAP_HEIGHT } from '../constants'
 
-const SAVE_VERSION = '1.2.0'
+const SAVE_VERSION = '1.3.0'
 const STORAGE_KEY = 'city-demo-saves'
 const MAX_SAVE_SLOTS = 10
 const AUTO_SAVE_INTERVAL = 5 * 60 * 1000 // 5 分钟
@@ -190,6 +190,67 @@ export class SaveSystem {
         cumulativeIncome: 0,
         upgradeLv3Unlocked: false,
         pendingRewards: [],
+      }
+    }
+
+    // v1.2.0 → v1.3.0: 添加新系统状态字段
+    if (gs.synergy === undefined) {
+      gs.synergy = {
+        tileEffects: {},
+        globalSatisfactionMod: 0,
+        incomeMultByType: { residential: 1, commercial: 1, industrial: 1 },
+        effMultByType: { residential: 1, commercial: 1, industrial: 1 },
+      }
+    }
+
+    if (gs.facilities === undefined) {
+      gs.facilities = {
+        coverage: {},
+        totalMaintenance: 0,
+        totalResearchPoints: 0,
+        avgCrisisResistance: 0,
+      }
+    }
+
+    if (gs.policies === undefined) {
+      gs.policies = {
+        activePolicies: [],
+        cooldowns: {},
+        unlockedPolicies: [],
+      }
+    }
+
+    if (gs.challenge === undefined) {
+      gs.challenge = {
+        challengeMode: false,
+        pendingCrisis: null,
+        activeCrises: [],
+        deficitDays: 0,
+        lowSatisfactionDays: 0,
+        gameOver: false,
+        gameWon: false,
+        winProgress: 0,
+        score: 0,
+      }
+    }
+
+    if (gs.tech === undefined) {
+      gs.tech = {
+        researched: [],
+        currentResearch: null,
+        researchProgress: 0,
+        dailyRP: 0,
+        unlockedBuildings: [],
+        unlockedPolicies: [],
+        unlockedSpecializations: [],
+        permanentMultipliers: {},
+      }
+    }
+
+    if (gs.specialization === undefined) {
+      gs.specialization = {
+        chosen: null,
+        available: [],
       }
     }
 
