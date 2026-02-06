@@ -84,7 +84,9 @@ export function TimeControl({ state, stateManager }: TimeControlProps) {
           <span className="text-red-400">-${economy.expenses}/d</span>
         </div>
         <div className="flex gap-3">
-          <span className="text-gray-400">Pop: {economy.population}</span>
+          <span className="text-gray-400">
+            Pop: {economy.population}/{economy.populationCapacity}
+          </span>
           <span
             className={
               economy.lastDayRevenue >= 0 ? 'text-green-300' : 'text-red-300'
@@ -92,6 +94,20 @@ export function TimeControl({ state, stateManager }: TimeControlProps) {
           >
             Net: {economy.lastDayRevenue >= 0 ? '+' : ''}$
             {economy.lastDayRevenue}
+          </span>
+        </div>
+        <div className="flex gap-2 items-center">
+          <span className="text-gray-500">满意度</span>
+          <span
+            className={
+              economy.satisfaction >= 70
+                ? 'text-green-400'
+                : economy.satisfaction >= 40
+                  ? 'text-yellow-400'
+                  : 'text-red-400'
+            }
+          >
+            {Math.round(economy.satisfaction)}%
           </span>
         </div>
       </div>

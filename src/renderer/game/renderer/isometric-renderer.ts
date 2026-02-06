@@ -4,10 +4,16 @@ import {
   TILE_WIDTH,
   TILE_HEIGHT,
   TILE_COLORS,
+  TERRAIN_COLORS,
   BUILDING_HEIGHTS,
   HOVER_COLOR,
   INVALID_COLOR,
   BUILDING_COSTS,
+  TERRAIN_BUILD_COST_MULTIPLIER,
+  LEVEL_HEIGHT_MULTIPLIER,
+  UPGRADE_COST_MULTIPLIER,
+  MAX_BUILDING_LEVEL,
+  UPGRADE_MIN_EFFICIENCY,
 } from '../constants'
 import {
   gridToScreen,
@@ -62,8 +68,9 @@ export class IsometricRenderer {
   }
 
   private renderMap(state: GameState): void {
-    const { map, camera } = state
+    const { map, camera, economy } = state
     const zoom = camera.zoom
+    const efficiencyByType = economy.efficiencyByType
 
     // 计算可见区域边界（优化渲染性能）
     const margin = 2
@@ -81,7 +88,7 @@ export class IsometricRenderer {
         x++
       ) {
         const tile = map.tiles[y][x]
-        this.renderTile(tile, camera, zoom)
+        this.renderTile(tile, camera, zoom, efficiencyByType)
       }
     }
   }
@@ -114,10 +121,24 @@ export class IsometricRenderer {
     }
   }
 
-  private renderTile(tile: Tile, camera: Camera, zoom: number): void {
-    const { x, y, type, connected } = tile
-    const colors = TILE_COLORS[type]
-    const height = BUILDING_HEIGHTS[type] * zoom
+  private renderTile(
+    tile: Tile,
+    camera: Camera,
+    zoom: number,
+    efficiencyByType: {
+      residential: number
+      commercial: number
+      industrial: number
+    }
+  ): void {
+    const { x, y, type, connected, terrain, level } = tile
+
+    // 空地使用地形颜色
+    const colors =
+      type === TileType.Empty ? TERRAIN_COLORS[terrain] : TILE_COLORS[type]
+    const baseHeight = BUILDING_HEIGHTS[type]
+    const levelMult = level > 0 ? LEVEL_HEIGHT_MULTIPLIER[level - 1] : 1
+    const height = baseHeight * levelMult * zoom
 
     // 内联坐标计算，避免函数调用开销
     const worldX = (x - y) * (TILE_WIDTH / 2)
@@ -137,9 +158,52 @@ export class IsometricRenderer {
     }
 
     const isBuilding = type !== TileType.Empty && type !== TileType.Road
-    const dimmed = isBuilding && !connected
 
-    this.drawIsometricBlock(sx, sy, colors, height, zoom, dimmed)
+    // 计算效率和渲染模式
+    let efficiency = 1
+    let dimmed = false
+    let lowEfficiency = false
+
+    if (isBuilding) {
+      if (!connected) {
+        dimmed = true
+      } else {
+        efficiency =
+          type === TileType.Residential
+            ? efficiencyByType.residential
+            : type === TileType.Commercial
+              ? efficiencyByType.commercial
+              : efficiencyByType.industrial
+        lowEfficiency = efficiency < 1
+      }
+    }
+
+    this.drawIsometricBlock(
+      sx,
+      sy,
+      colors,
+      height,
+      zoom,
+      dimmed,
+      lowEfficiency ? efficiency : 1
+    )
+
+    // 低效率警示标记
+    if (isBuilding && connected && efficiency < 0.5) {
+      this.ctx.fillStyle = 'rgba(255, 200, 50, 0.9)'
+      this.ctx.font = `bold ${12 * zoom}px sans-serif`
+      this.ctx.textAlign = 'center'
+      this.ctx.fillText('!', sx, sy - height - 5 * zoom)
+    }
+
+    // Lv2+ 建筑显示等级标签
+    if (isBuilding && level >= 2) {
+      const labelY = sy - height - (efficiency < 0.5 ? 18 : 5) * zoom
+      this.ctx.fillStyle = 'rgba(255, 255, 255, 0.85)'
+      this.ctx.font = `bold ${10 * zoom}px sans-serif`
+      this.ctx.textAlign = 'center'
+      this.ctx.fillText(`Lv${level}`, sx, labelY)
+    }
   }
 
   private drawIsometricBlock(
@@ -148,16 +212,17 @@ export class IsometricRenderer {
     colors: { top: string; left: string; right: string },
     height: number,
     zoom: number,
-    dimmed = false
+    dimmed = false,
+    efficiency = 1
   ): void {
     const hw = (TILE_WIDTH / 2) * zoom
     const hh = (TILE_HEIGHT / 2) * zoom
 
-    // 如果建筑未连接道路，应用灰暗效果
+    // 如果建筑未连接道路，应用灰暗效果；如果效率低，应用去饱和
     const applyDim = (color: string): string => {
-      if (!dimmed) return color
-      // 将颜色转换为灰暗版本
-      return this.dimColor(color)
+      if (dimmed) return this.dimColor(color)
+      if (efficiency < 1) return this.desaturateColor(color, efficiency)
+      return color
     }
 
     if (height > 0) {
@@ -229,6 +294,33 @@ export class IsometricRenderer {
     return result
   }
 
+  /** 根据效率值对颜色去饱和（带缓存） */
+  private desaturateColor(color: string, efficiency: number): string {
+    // 效率越低去饱和越多
+    const key = `${color}-${efficiency.toFixed(2)}`
+    const cached = this.dimColorCache.get(key)
+    if (cached) return cached
+
+    const hex = color.replace('#', '')
+    if (hex.length !== 6) return color
+
+    const r = Number.parseInt(hex.slice(0, 2), 16)
+    const g = Number.parseInt(hex.slice(2, 4), 16)
+    const b = Number.parseInt(hex.slice(4, 6), 16)
+
+    const gray = (r + g + b) / 3
+    const factor = 1 - efficiency // 0=全色 1=全灰
+    const desatFactor = factor * 0.6 // 最多60%去饱和
+
+    const newR = Math.round(r * (1 - desatFactor) + gray * desatFactor)
+    const newG = Math.round(g * (1 - desatFactor) + gray * desatFactor)
+    const newB = Math.round(b * (1 - desatFactor) + gray * desatFactor)
+
+    const result = `rgb(${newR}, ${newG}, ${newB})`
+    this.dimColorCache.set(key, result)
+    return result
+  }
+
   private renderHover(state: GameState): void {
     const { hoveredTile, currentTool, money, camera } = state
     if (!hoveredTile) return
@@ -241,27 +333,64 @@ export class IsometricRenderer {
       this.originY,
       camera
     )
-    const currentTileType = state.map.tiles[hoveredTile.y][hoveredTile.x].type
+    const tile = state.map.tiles[hoveredTile.y][hoveredTile.x]
+    const currentTileType = tile.type
 
     let highlightColor = HOVER_COLOR
 
     // 检查是否可以放置
     if (currentTool !== ToolType.Select) {
-      const targetType = toolToTileType[currentTool]
-      if (targetType) {
-        const cost = BUILDING_COSTS[targetType as keyof typeof BUILDING_COSTS]
-        if (cost !== undefined) {
-          const canPlace = currentTileType === TileType.Empty && money >= cost
-          if (!canPlace) highlightColor = INVALID_COLOR
-        }
-      } else if (currentTool === ToolType.Demolish) {
-        if (currentTileType === TileType.Empty) {
-          highlightColor = INVALID_COLOR
+      if (currentTool === ToolType.Upgrade) {
+        // 升级工具高亮逻辑
+        const canUpgrade = this.canUpgradeTile(tile, state)
+        if (!canUpgrade) highlightColor = INVALID_COLOR
+      } else {
+        const targetType = toolToTileType[currentTool]
+        if (targetType) {
+          const baseCost =
+            BUILDING_COSTS[targetType as keyof typeof BUILDING_COSTS]
+          if (baseCost !== undefined) {
+            const terrainMult = TERRAIN_BUILD_COST_MULTIPLIER[tile.terrain]
+            const canPlace =
+              currentTileType === TileType.Empty &&
+              Number.isFinite(terrainMult) &&
+              money >= Math.ceil(baseCost * terrainMult)
+            if (!canPlace) highlightColor = INVALID_COLOR
+          }
+        } else if (currentTool === ToolType.Demolish) {
+          if (currentTileType === TileType.Empty) {
+            highlightColor = INVALID_COLOR
+          }
         }
       }
     }
 
     this.drawHighlight(screen.x, screen.y, highlightColor, camera.zoom)
+  }
+
+  private canUpgradeTile(tile: Tile, state: GameState): boolean {
+    if (tile.type === TileType.Empty || tile.type === TileType.Road)
+      return false
+    if (tile.level >= MAX_BUILDING_LEVEL) return false
+    if (tile.level === 2 && !state.milestones.upgradeLv3Unlocked) return false
+    if (!tile.connected) return false
+
+    const efficiency =
+      tile.type === TileType.Residential
+        ? state.economy.efficiencyByType.residential
+        : tile.type === TileType.Commercial
+          ? state.economy.efficiencyByType.commercial
+          : state.economy.efficiencyByType.industrial
+    if (efficiency < UPGRADE_MIN_EFFICIENCY) return false
+
+    const baseCost = BUILDING_COSTS[tile.type as keyof typeof BUILDING_COSTS]
+    if (baseCost === undefined) return false
+    const terrainMult = TERRAIN_BUILD_COST_MULTIPLIER[tile.terrain]
+    const mult = Number.isFinite(terrainMult) ? terrainMult : 1
+    const cost = Math.ceil(
+      baseCost * mult * UPGRADE_COST_MULTIPLIER[tile.level]
+    )
+    return state.money >= cost
   }
 
   private drawHighlight(

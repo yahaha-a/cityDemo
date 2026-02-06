@@ -6,9 +6,13 @@ import {
   type Camera,
   type TimeState,
   type EconomyState,
+  type EventState,
+  type MilestoneState,
   TileType,
+  TerrainType,
   ToolType,
   TimeSpeed,
+  DemandLevel,
 } from 'shared/game-types'
 import {
   MAP_WIDTH,
@@ -16,14 +20,33 @@ import {
   INITIAL_MONEY,
   CAMERA_MIN_ZOOM,
   CAMERA_MAX_ZOOM,
+  EVENT_BASE_COOLDOWN,
 } from '../constants'
+import { generateTerrainNoise } from '../utils/seeded-random'
 
-function createEmptyMap(): GameMap {
+function terrainFromNoise(value: number): TerrainType {
+  if (value < 0.15) return TerrainType.Water
+  if (value < 0.3) return TerrainType.Fertile
+  if (value < 0.7) return TerrainType.Plain
+  if (value < 0.85) return TerrainType.Rocky
+  return TerrainType.Hill
+}
+
+function createEmptyMap(seed: number): GameMap {
+  const noise = generateTerrainNoise(MAP_WIDTH, MAP_HEIGHT, seed)
   const tiles: Tile[][] = []
   for (let y = 0; y < MAP_HEIGHT; y++) {
     tiles[y] = []
     for (let x = 0; x < MAP_WIDTH; x++) {
-      tiles[y][x] = { type: TileType.Empty, x, y, level: 0, connected: false }
+      const terrain = terrainFromNoise(noise[y][x])
+      tiles[y][x] = {
+        type: TileType.Empty,
+        x,
+        y,
+        level: 0,
+        connected: false,
+        terrain,
+      }
     }
   }
   return { width: MAP_WIDTH, height: MAP_HEIGHT, tiles }
@@ -51,18 +74,59 @@ function createInitialEconomy(): EconomyState {
     expenses: 0,
     population: 0,
     lastDayRevenue: 0,
+    satisfaction: 75,
+    populationCapacity: 0,
+    resources: {
+      labor: { supply: 0, demand: 0, ratio: 1 },
+      goods: { supply: 0, demand: 0, ratio: 1 },
+      services: { supply: 0, demand: 0, ratio: 1 },
+    },
+    demandIndicators: {
+      residential: DemandLevel.Balanced,
+      commercial: DemandLevel.Balanced,
+      industrial: DemandLevel.Balanced,
+    },
+    efficiencyByType: {
+      residential: 1,
+      commercial: 1,
+      industrial: 1,
+    },
+  }
+}
+
+function createInitialEvents(): EventState {
+  return {
+    activeEvents: [],
+    eventCooldown: EVENT_BASE_COOLDOWN,
+    eventHistory: [],
+    unlockedEventIds: [],
+  }
+}
+
+function createInitialMilestones(): MilestoneState {
+  return {
+    achieved: [],
+    satisfactionStreak: 0,
+    cumulativeIncome: 0,
+    upgradeLv3Unlocked: false,
+    pendingRewards: [],
   }
 }
 
 function createInitialState(): GameState {
+  const mapSeed = Date.now()
   return {
-    map: createEmptyMap(),
+    map: createEmptyMap(mapSeed),
     money: INITIAL_MONEY,
     currentTool: ToolType.Select,
     hoveredTile: null,
     camera: createInitialCamera(),
     time: createInitialTime(),
     economy: createInitialEconomy(),
+    populationFloat: 0,
+    mapSeed,
+    events: createInitialEvents(),
+    milestones: createInitialMilestones(),
   }
 }
 
@@ -117,13 +181,29 @@ export class GameStateManager {
   }
 
   setTileAt(x: number, y: number, type: TileType, level = 1): void {
-    this.state.map.tiles[y][x] = { type, x, y, level, connected: false }
+    const existing = this.state.map.tiles[y][x]
+    this.state.map.tiles[y][x] = {
+      type,
+      x,
+      y,
+      level,
+      connected: false,
+      terrain: existing.terrain,
+    }
     this.notify()
   }
 
   /** 设置瓦片但不触发通知（用于批量操作，调用方自行 notify） */
   setTileAtSilent(x: number, y: number, type: TileType, level = 1): void {
-    this.state.map.tiles[y][x] = { type, x, y, level, connected: false }
+    const existing = this.state.map.tiles[y][x]
+    this.state.map.tiles[y][x] = {
+      type,
+      x,
+      y,
+      level,
+      connected: false,
+      terrain: existing.terrain,
+    }
   }
 
   /** 更新瓦片的连接状态 */
@@ -167,6 +247,11 @@ export class GameStateManager {
   addMoney(amount: number): void {
     this.state.money = Math.max(0, this.state.money + amount)
     this.notify()
+  }
+
+  /** 修改资金但不触发通知（用于批量操作，调用方自行 notify） */
+  addMoneySilent(amount: number): void {
+    this.state.money = Math.max(0, this.state.money + amount)
   }
 
   getTileAt(x: number, y: number): Tile | null {
@@ -230,6 +315,36 @@ export class GameStateManager {
   // 经济状态更新
   updateEconomy(economy: Partial<EconomyState>): void {
     this.state.economy = { ...this.state.economy, ...economy }
+    this.notify()
+  }
+
+  setPopulationFloat(value: number): void {
+    this.state.populationFloat = value
+  }
+
+  /** 升级瓦片等级 */
+  upgradeTileLevel(x: number, y: number): void {
+    const tile = this.state.map.tiles[y]?.[x]
+    if (tile) {
+      tile.level += 1
+      this.notify()
+    }
+  }
+
+  /** 更新事件状态 */
+  updateEvents(events: EventState): void {
+    this.state.events = events
+    this.notify()
+  }
+
+  /** 更新事件状态（不触发通知） */
+  updateEventsSilent(events: EventState): void {
+    this.state.events = events
+  }
+
+  /** 更新里程碑状态 */
+  updateMilestones(milestones: MilestoneState): void {
+    this.state.milestones = milestones
     this.notify()
   }
 

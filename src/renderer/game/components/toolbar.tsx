@@ -1,4 +1,5 @@
-import { ToolType } from 'shared/game-types'
+import { ToolType, DemandLevel } from 'shared/game-types'
+import type { DemandIndicators } from 'shared/game-types'
 import { TOOL_LABELS, BUILDING_COSTS } from '../constants'
 import { TileType } from 'shared/game-types'
 
@@ -20,16 +21,36 @@ const TOOLS = [
     icon: '🏭',
     cost: BUILDING_COSTS[TileType.Industrial],
   },
+  { type: ToolType.Upgrade, icon: '⬆', cost: null },
   { type: ToolType.Demolish, icon: '💥', cost: null },
 ]
+
+const DEMAND_DOT_COLORS: Record<DemandLevel, string> = {
+  [DemandLevel.Low]: 'bg-green-400',
+  [DemandLevel.Balanced]: 'bg-yellow-400',
+  [DemandLevel.High]: 'bg-orange-400',
+  [DemandLevel.Critical]: 'bg-red-500',
+}
+
+const TOOL_TO_DEMAND_KEY: Partial<Record<ToolType, keyof DemandIndicators>> = {
+  [ToolType.Residential]: 'residential',
+  [ToolType.Commercial]: 'commercial',
+  [ToolType.Industrial]: 'industrial',
+}
 
 interface ToolbarProps {
   currentTool: ToolType
   money: number
+  demandIndicators: DemandIndicators
   onSelectTool: (tool: ToolType) => void
 }
 
-export function Toolbar({ currentTool, money, onSelectTool }: ToolbarProps) {
+export function Toolbar({
+  currentTool,
+  money,
+  demandIndicators,
+  onSelectTool,
+}: ToolbarProps) {
   return (
     <div className="absolute top-4 left-4 flex flex-col gap-2 bg-gray-900/90 rounded-lg p-3 border border-gray-700 select-none">
       <div className="text-center text-sm text-gray-400 pb-2 border-b border-gray-700">
@@ -39,6 +60,8 @@ export function Toolbar({ currentTool, money, onSelectTool }: ToolbarProps) {
       {TOOLS.map(({ type, icon, cost }) => {
         const isActive = currentTool === type
         const canAfford = cost === null || money >= cost
+        const demandKey = TOOL_TO_DEMAND_KEY[type]
+        const demandLevel = demandKey ? demandIndicators[demandKey] : null
 
         return (
           <button
@@ -59,6 +82,11 @@ export function Toolbar({ currentTool, money, onSelectTool }: ToolbarProps) {
           >
             <span className="text-lg">{icon}</span>
             <span>{TOOL_LABELS[type]}</span>
+            {demandLevel && (
+              <span
+                className={`w-2 h-2 rounded-full ml-1 ${DEMAND_DOT_COLORS[demandLevel]}`}
+              />
+            )}
             {cost !== null && (
               <span
                 className={`ml-auto text-xs ${canAfford ? 'text-green-400' : 'text-red-400'}`}

@@ -36,18 +36,21 @@ jobs:
           BASE_VERSION=$(node -p "require('./package.json').version")
           if [[ "${{ github.ref }}" == refs/tags/v* ]]; then
             # Tag 推送：使用 tag 名称作为版本号
-            VERSION="${{ github.ref_name }}"
-            VERSION="${VERSION#v}"
+            TAG_NAME="${{ github.ref_name }}"
+            VERSION="${TAG_NAME#v}"
           elif [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
-            # main 分支：使用 package.json 版本号
+            # main 分支：使用 package.json 版本号，tag 带 v 前缀
             VERSION="${BASE_VERSION}"
+            TAG_NAME="v${BASE_VERSION}"
           else
             # dev 分支：自动生成版本号 (版本号-dev.构建号.commit短哈希)
             SHORT_SHA=$(echo "${{ github.sha }}" | cut -c1-7)
             VERSION="${BASE_VERSION}-dev.${{ github.run_number }}.${SHORT_SHA}"
+            TAG_NAME="v${VERSION}"
           fi
           echo "version=${VERSION}" >> $GITHUB_OUTPUT
-          echo "Generated version: ${VERSION}"
+          echo "tag_name=${TAG_NAME}" >> $GITHUB_OUTPUT
+          echo "Generated version: ${VERSION}, tag: ${TAG_NAME}"
 
       - name: Update package.json version
         shell: bash
@@ -76,4 +79,47 @@ jobs:
         with:
           package_manager: "pnpm"
           github_token: ${{ secrets.github_token }}
-          release: true
+          release: ${{ startsWith(github.ref, 'refs/tags/') }}
+
+      - name: Upload build artifacts
+        if: github.ref == 'refs/heads/main'
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-${{ matrix.os }}
+          path: dist/v${{ steps.version.outputs.version }}/
+          if-no-files-found: warn
+
+  release:
+    needs: build
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Get version
+        id: version
+        run: |
+          BASE_VERSION=$(node -p "require('./package.json').version")
+          echo "tag_name=v${BASE_VERSION}" >> $GITHUB_OUTPUT
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.tag_name }}
+          name: ${{ steps.version.outputs.tag_name }}
+          files: artifacts/**
+          generate_release_notes: true
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

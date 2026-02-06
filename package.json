@@ -1,8 +1,8 @@
 {
   "displayName": "City Demo",
   "name": "city-demo",
-  "description": "????????",
-  "version": "0.0.0",
+  "description": "city-building simulation game",
+  "version": "0.1.0",
   "main": "./node_modules/.dev/main/index.mjs",
   "resources": "src/resources",
   "author": {
