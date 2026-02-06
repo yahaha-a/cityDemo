@@ -20,6 +20,12 @@ export class MapSystem {
       [TileType.Residential]: 0,
       [TileType.Commercial]: 0,
       [TileType.Industrial]: 0,
+      [TileType.Park]: 0,
+      [TileType.School]: 0,
+      [TileType.Hospital]: 0,
+      [TileType.FireStation]: 0,
+      [TileType.PoliceStation]: 0,
+      [TileType.PowerPlant]: 0,
     }
 
     const { map } = this.stateManager.getState()

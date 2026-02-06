@@ -9,6 +9,12 @@ export enum TileType {
   Residential = 'residential',
   Commercial = 'commercial',
   Industrial = 'industrial',
+  Park = 'park',
+  School = 'school',
+  Hospital = 'hospital',
+  FireStation = 'fire_station',
+  PoliceStation = 'police_station',
+  PowerPlant = 'power_plant',
 }
 
 /** 地形类型 */
@@ -27,6 +33,12 @@ export enum ToolType {
   Residential = 'residential',
   Commercial = 'commercial',
   Industrial = 'industrial',
+  Park = 'park',
+  School = 'school',
+  Hospital = 'hospital',
+  FireStation = 'fire_station',
+  PoliceStation = 'police_station',
+  PowerPlant = 'power_plant',
   Demolish = 'demolish',
   Upgrade = 'upgrade',
 }
@@ -180,6 +192,240 @@ export interface MilestoneState {
   pendingRewards: MilestoneReward[]
 }
 
+// === 邻接协同系统类型 ===
+
+export interface SynergyEffect {
+  type: 'satisfaction' | 'income_multiplier' | 'efficiency_multiplier'
+  value: number
+}
+
+export interface SynergyRule {
+  id: string
+  sourceTileType: TileType
+  targetTileType: TileType
+  radius: number
+  effect: SynergyEffect
+  maxStacks: number
+}
+
+export interface TileSynergyInfo {
+  satisfactionMod: number
+  incomeMultiplier: number
+  efficiencyMultiplier: number
+  sources: Array<{ ruleId: string; stacks: number }>
+}
+
+export interface SynergyState {
+  tileEffects: Record<string, TileSynergyInfo>
+  globalSatisfactionMod: number
+  incomeMultByType: {
+    residential: number
+    commercial: number
+    industrial: number
+  }
+  effMultByType: { residential: number; commercial: number; industrial: number }
+}
+
+// === 区域设施系统类型 ===
+
+export interface FacilityEffect {
+  type:
+    | 'satisfaction'
+    | 'income_multiplier'
+    | 'efficiency_multiplier'
+    | 'crisis_resistance'
+    | 'capacity_multiplier'
+    | 'research_points'
+  value: number
+  targetTileType?: TileType
+}
+
+export interface FacilityTemplate {
+  tileType: TileType
+  name: string
+  buildCost: number
+  maintenanceCost: number
+  radius: number
+  effects: FacilityEffect[]
+  unlockTech?: string
+}
+
+export interface FacilityCoverageInfo {
+  satisfactionMod: number
+  incomeMultiplier: number
+  efficiencyMultiplier: number
+  crisisResistance: number
+  capacityMultiplier: number
+  researchPoints: number
+  facilities: TileType[]
+}
+
+export interface FacilityCoverageState {
+  coverage: Record<string, FacilityCoverageInfo>
+  totalMaintenance: number
+  totalResearchPoints: number
+  avgCrisisResistance: number
+}
+
+// === 政策系统类型 ===
+
+export interface PolicyEffect {
+  type:
+    | 'income_multiplier'
+    | 'satisfaction'
+    | 'growth_multiplier'
+    | 'expense_multiplier'
+    | 'industrial_multiplier'
+    | 'commercial_multiplier'
+    | 'capacity_multiplier'
+    | 'research_multiplier'
+    | 'road_maintenance_multiplier'
+    | 'build_cost_multiplier'
+    | 'crisis_frequency_multiplier'
+  value: number
+}
+
+export interface PolicyTemplate {
+  id: string
+  name: string
+  category: string
+  effects: PolicyEffect[]
+  exclusiveWith: string[]
+  cooldownDays: number
+  unlockTech?: string
+}
+
+export interface PolicyState {
+  activePolicies: string[]
+  cooldowns: Record<string, number>
+  unlockedPolicies: string[]
+}
+
+// === 危机系统类型 ===
+
+export interface CrisisEffect {
+  type:
+    | 'money'
+    | 'satisfaction'
+    | 'income_multiplier_temp'
+    | 'industrial_multiplier_temp'
+    | 'services_multiplier_temp'
+    | 'population_loss'
+    | 'prevent_chain'
+  value: number
+  durationDays?: number
+}
+
+export interface CrisisOption {
+  id: string
+  label: string
+  description: string
+  cost: number
+  effects: CrisisEffect[]
+  requirements?: { facility?: TileType; tech?: string }
+}
+
+export interface CrisisTemplate {
+  id: string
+  name: string
+  description: string
+  severity: 'minor' | 'moderate' | 'major' | 'catastrophic'
+  options: CrisisOption[]
+  chainEventId?: string
+  chainProbability?: number
+  preventedByFacilities?: TileType[]
+  preventionThreshold?: number
+  minDay: number
+  baseProbability: number
+}
+
+export interface ActiveCrisis {
+  templateId: string
+  name: string
+  severity: string
+  remainingEffects: Array<{
+    type: string
+    value: number
+    remainingDays: number
+  }>
+}
+
+export interface ChallengeState {
+  challengeMode: boolean
+  pendingCrisis: CrisisTemplate | null
+  activeCrises: ActiveCrisis[]
+  deficitDays: number
+  lowSatisfactionDays: number
+  gameOver: boolean
+  gameWon: boolean
+  winProgress: number
+  score: number
+}
+
+// === 科技树类型 ===
+
+export interface TechEffect {
+  type:
+    | 'unlock_building'
+    | 'unlock_policy'
+    | 'permanent_multiplier'
+    | 'unlock_specialization'
+    | 'increase_synergy_radius'
+    | 'research_multiplier'
+  value?: number
+  target?: string
+}
+
+export interface TechNode {
+  id: string
+  name: string
+  description: string
+  tier: number
+  rpCost: number
+  effects: TechEffect[]
+  prerequisites: string[]
+}
+
+export interface TechState {
+  researched: string[]
+  currentResearch: string | null
+  researchProgress: number
+  dailyRP: number
+  unlockedBuildings: TileType[]
+  unlockedPolicies: string[]
+  unlockedSpecializations: string[]
+  permanentMultipliers: Record<string, number>
+}
+
+// === 城市特色类型 ===
+
+export interface SpecializationEffect {
+  type:
+    | 'industrial_multiplier'
+    | 'commercial_multiplier'
+    | 'satisfaction'
+    | 'capacity_multiplier'
+    | 'income_multiplier'
+    | 'build_cost_multiplier'
+    | 'research_multiplier'
+    | 'all_production_multiplier'
+    | 'all_cost_multiplier'
+  value: number
+}
+
+export interface SpecializationTemplate {
+  id: string
+  name: string
+  description: string
+  effects: SpecializationEffect[]
+  unlockTech: string
+}
+
+export interface SpecializationState {
+  chosen: string | null
+  available: string[]
+}
+
 /** 游戏状态 */
 export interface GameState {
   map: GameMap
@@ -193,6 +439,12 @@ export interface GameState {
   mapSeed: number
   events: EventState
   milestones: MilestoneState
+  synergy: SynergyState
+  facilities: FacilityCoverageState
+  policies: PolicyState
+  challenge: ChallengeState
+  tech: TechState
+  specialization: SpecializationState
 }
 
 /** 建筑成本配置 */
@@ -209,6 +461,41 @@ export const toolToTileType: Partial<Record<ToolType, TileType>> = {
   [ToolType.Residential]: TileType.Residential,
   [ToolType.Commercial]: TileType.Commercial,
   [ToolType.Industrial]: TileType.Industrial,
+  [ToolType.Park]: TileType.Park,
+  [ToolType.School]: TileType.School,
+  [ToolType.Hospital]: TileType.Hospital,
+  [ToolType.FireStation]: TileType.FireStation,
+  [ToolType.PoliceStation]: TileType.PoliceStation,
+  [ToolType.PowerPlant]: TileType.PowerPlant,
+}
+
+/** 设施类型集合 */
+export const FACILITY_TILE_TYPES: ReadonlySet<TileType> = new Set([
+  TileType.Park,
+  TileType.School,
+  TileType.Hospital,
+  TileType.FireStation,
+  TileType.PoliceStation,
+  TileType.PowerPlant,
+])
+
+/** 判断瓦片类型是否为设施 */
+export function isFacilityType(type: TileType): boolean {
+  return FACILITY_TILE_TYPES.has(type)
+}
+
+/** 判断瓦片类型是否为核心建筑（住宅/商业/工业） */
+export function isCoreBuilding(type: TileType): boolean {
+  return (
+    type === TileType.Residential ||
+    type === TileType.Commercial ||
+    type === TileType.Industrial
+  )
+}
+
+/** 判断瓦片类型是否为任何建筑（含设施） */
+export function isBuilding(type: TileType): boolean {
+  return type !== TileType.Empty && type !== TileType.Road
 }
 
 /** 存档数据结构 */

@@ -8,6 +8,12 @@ import { RoadSystem } from '../systems/road-system'
 import { EconomySystem } from '../systems/economy-system'
 import { EventSystem } from '../systems/event-system'
 import { MilestoneSystem } from '../systems/milestone-system'
+import { SynergySystem } from '../systems/synergy-system'
+import { FacilitySystem } from '../systems/facility-system'
+import { PolicySystem } from '../systems/policy-system'
+import { CrisisSystem } from '../systems/crisis-system'
+import { TechSystem } from '../systems/tech-system'
+import { SpecializationSystem } from '../systems/specialization-system'
 import { InputHandler } from '../input/input-handler'
 
 export interface GameEngine {
@@ -18,6 +24,12 @@ export interface GameEngine {
   economySystem: EconomySystem
   eventSystem: EventSystem
   milestoneSystem: MilestoneSystem
+  synergySystem: SynergySystem
+  facilitySystem: FacilitySystem
+  policySystem: PolicySystem
+  crisisSystem: CrisisSystem
+  techSystem: TechSystem
+  specializationSystem: SpecializationSystem
 }
 
 /**
@@ -38,6 +50,24 @@ export function useGameEngine(
     new EventSystem(stateManagerRef.current)
   )
   const mapSystemRef = useRef<MapSystem>(new MapSystem(stateManagerRef.current))
+  const synergySystemRef = useRef<SynergySystem>(
+    new SynergySystem(stateManagerRef.current)
+  )
+  const facilitySystemRef = useRef<FacilitySystem>(
+    new FacilitySystem(stateManagerRef.current)
+  )
+  const policySystemRef = useRef<PolicySystem>(
+    new PolicySystem(stateManagerRef.current)
+  )
+  const crisisSystemRef = useRef<CrisisSystem>(
+    new CrisisSystem(stateManagerRef.current)
+  )
+  const techSystemRef = useRef<TechSystem>(
+    new TechSystem(stateManagerRef.current)
+  )
+  const specializationSystemRef = useRef<SpecializationSystem>(
+    new SpecializationSystem(stateManagerRef.current)
+  )
   const milestoneSystemRef = useRef<MilestoneSystem>(
     new MilestoneSystem(
       stateManagerRef.current,
@@ -49,8 +79,19 @@ export function useGameEngine(
     new BuildingSystem(stateManagerRef.current, roadSystemRef.current)
   )
 
-  // 注入事件系统
+  // 注入系统间依赖
+  // 依赖图: Economy←Event/Policy/Crisis/Specialization,
+  //         Crisis←Policy, Tech←Policy/Synergy, Building←Facility
   economySystemRef.current.setEventSystem(eventSystemRef.current)
+  economySystemRef.current.setPolicySystem(policySystemRef.current)
+  economySystemRef.current.setCrisisSystem(crisisSystemRef.current)
+  economySystemRef.current.setSpecializationSystem(
+    specializationSystemRef.current
+  )
+  crisisSystemRef.current.setPolicySystem(policySystemRef.current)
+  techSystemRef.current.setPolicySystem(policySystemRef.current)
+  techSystemRef.current.setSynergySystem(synergySystemRef.current)
+  buildingSystemRef.current.setFacilitySystem(facilitySystemRef.current)
 
   useEffect(() => {
     const canvas = canvasRef.current
@@ -60,13 +101,23 @@ export function useGameEngine(
     const economySystem = economySystemRef.current
     const eventSystem = eventSystemRef.current
     const milestoneSystem = milestoneSystemRef.current
+    const synergySystem = synergySystemRef.current
+    const facilitySystem = facilitySystemRef.current
+    const policySystem = policySystemRef.current
+    const crisisSystem = crisisSystemRef.current
+    const techSystem = techSystemRef.current
     const renderer = new IsometricRenderer(canvas)
     const gameLoop = new GameLoop(
       renderer,
       stateManager,
       economySystem,
       eventSystem,
-      milestoneSystem
+      milestoneSystem,
+      synergySystem,
+      facilitySystem,
+      policySystem,
+      crisisSystem,
+      techSystem
     )
     const buildingSystem = buildingSystemRef.current
     const inputHandler = new InputHandler(
@@ -105,5 +156,11 @@ export function useGameEngine(
     economySystem: economySystemRef.current,
     eventSystem: eventSystemRef.current,
     milestoneSystem: milestoneSystemRef.current,
+    synergySystem: synergySystemRef.current,
+    facilitySystem: facilitySystemRef.current,
+    policySystem: policySystemRef.current,
+    crisisSystem: crisisSystemRef.current,
+    techSystem: techSystemRef.current,
+    specializationSystem: specializationSystemRef.current,
   }
 }
