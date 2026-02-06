@@ -35,7 +35,7 @@ export class PolicySystem {
 
     if (changed) {
       policies.cooldowns = newCooldowns
-      this.stateManager.updatePolicies(policies)
+      this.stateManager.update({ policies })
     }
   }
 
@@ -57,7 +57,7 @@ export class PolicySystem {
         ...policies.cooldowns,
         [policyId]: template.cooldownDays || POLICY_DEFAULT_COOLDOWN,
       }
-      this.stateManager.updatePolicies(policies)
+      this.stateManager.update({ policies })
       return true
     }
 
@@ -78,7 +78,7 @@ export class PolicySystem {
     }
 
     policies.activePolicies = [...policies.activePolicies, policyId]
-    this.stateManager.updatePolicies(policies)
+    this.stateManager.update({ policies })
     return true
   }
 

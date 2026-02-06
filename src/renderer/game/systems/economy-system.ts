@@ -61,28 +61,22 @@ function toDemandLevel(ratio: number): DemandLevel {
  */
 export class EconomySystem {
   private stateManager: GameStateManager
-  private eventSystem: EventSystem | null = null
-  private policySystem: PolicySystem | null = null
-  private crisisSystem: CrisisSystem | null = null
-  private specializationSystem: SpecializationSystem | null = null
+  private eventSystem: EventSystem
+  private policySystem: PolicySystem
+  private crisisSystem: CrisisSystem
+  private specializationSystem: SpecializationSystem
 
-  constructor(stateManager: GameStateManager) {
+  constructor(
+    stateManager: GameStateManager,
+    eventSystem: EventSystem,
+    policySystem: PolicySystem,
+    crisisSystem: CrisisSystem,
+    specializationSystem: SpecializationSystem
+  ) {
     this.stateManager = stateManager
-  }
-
-  setEventSystem(eventSystem: EventSystem): void {
     this.eventSystem = eventSystem
-  }
-
-  setPolicySystem(policySystem: PolicySystem): void {
     this.policySystem = policySystem
-  }
-
-  setCrisisSystem(crisisSystem: CrisisSystem): void {
     this.crisisSystem = crisisSystem
-  }
-
-  setSpecializationSystem(specializationSystem: SpecializationSystem): void {
     this.specializationSystem = specializationSystem
   }
 
@@ -97,41 +91,40 @@ export class EconomySystem {
 
     // === 聚合所有系统的乘数 ===
     const policyIncomeMult =
-      this.policySystem?.getAggregatedEffect('income_multiplier') ?? 1
+      this.policySystem.getAggregatedEffect('income_multiplier') ?? 1
     const policyExpenseMult =
-      this.policySystem?.getAggregatedEffect('expense_multiplier') ?? 1
+      this.policySystem.getAggregatedEffect('expense_multiplier') ?? 1
     const policySatisfaction =
-      this.policySystem?.getAggregatedEffect('satisfaction') ?? 0
+      this.policySystem.getAggregatedEffect('satisfaction') ?? 0
     const policyGrowthMult =
-      this.policySystem?.getAggregatedEffect('growth_multiplier') ?? 1
+      this.policySystem.getAggregatedEffect('growth_multiplier') ?? 1
     const policyCapacityMult =
-      this.policySystem?.getAggregatedEffect('capacity_multiplier') ?? 1
+      this.policySystem.getAggregatedEffect('capacity_multiplier') ?? 1
     const policyIndustrialMult =
-      this.policySystem?.getAggregatedEffect('industrial_multiplier') ?? 1
+      this.policySystem.getAggregatedEffect('industrial_multiplier') ?? 1
     const policyCommercialMult =
-      this.policySystem?.getAggregatedEffect('commercial_multiplier') ?? 1
+      this.policySystem.getAggregatedEffect('commercial_multiplier') ?? 1
     const policyRoadMaintMult =
-      this.policySystem?.getAggregatedEffect('road_maintenance_multiplier') ?? 1
+      this.policySystem.getAggregatedEffect('road_maintenance_multiplier') ?? 1
     const crisisIncomeMult =
-      this.crisisSystem?.getActiveMultiplier('income_multiplier_temp') ?? 1
+      this.crisisSystem.getActiveMultiplier('income_multiplier_temp') ?? 1
     const crisisIndustrialMult =
-      this.crisisSystem?.getActiveMultiplier('industrial_multiplier_temp') ?? 1
+      this.crisisSystem.getActiveMultiplier('industrial_multiplier_temp') ?? 1
     const crisisServicesMult =
-      this.crisisSystem?.getActiveMultiplier('services_multiplier_temp') ?? 1
+      this.crisisSystem.getActiveMultiplier('services_multiplier_temp') ?? 1
 
     const specIndustrialMult =
-      this.specializationSystem?.getEffectValue('industrial_multiplier') ?? 1
+      this.specializationSystem.getEffectValue('industrial_multiplier') ?? 1
     const specCommercialMult =
-      this.specializationSystem?.getEffectValue('commercial_multiplier') ?? 1
+      this.specializationSystem.getEffectValue('commercial_multiplier') ?? 1
     const specIncomeMult =
-      this.specializationSystem?.getEffectValue('income_multiplier') ?? 1
+      this.specializationSystem.getEffectValue('income_multiplier') ?? 1
     const specCapacityMult =
-      this.specializationSystem?.getEffectValue('capacity_multiplier') ?? 1
+      this.specializationSystem.getEffectValue('capacity_multiplier') ?? 1
     const specSatisfaction =
-      this.specializationSystem?.getEffectValue('satisfaction') ?? 0
+      this.specializationSystem.getEffectValue('satisfaction') ?? 0
     const specAllProdMult =
-      this.specializationSystem?.getEffectValue('all_production_multiplier') ??
-      1
+      this.specializationSystem.getEffectValue('all_production_multiplier') ?? 1
 
     // 科技永久乘数
     const techIndustrialEff =
@@ -396,8 +389,6 @@ export class EconomySystem {
       populationFloat = 0
     }
 
-    this.stateManager.setPopulationFloat(populationFloat)
-
     // === 步骤 7 - 需求指示 ===
     const demandIndicators: DemandIndicators = {
       residential: toDemandLevel(laborRatio),
@@ -419,20 +410,24 @@ export class EconomySystem {
       },
     }
 
-    this.stateManager.addMoneySilent(netRevenue)
-    this.stateManager.updateEconomy({
-      income: Math.round(income),
-      expenses: Math.round(expenses),
-      population: newPopulation,
-      lastDayRevenue: netRevenue,
-      satisfaction,
-      populationCapacity: Math.floor(capacity),
-      resources,
-      demandIndicators,
-      efficiencyByType: {
-        residential: residentialEff,
-        commercial: commercialEff,
-        industrial: industrialEff,
+    this.stateManager.addMoney(netRevenue)
+    this.stateManager.update({
+      populationFloat,
+      economy: {
+        ...state.economy,
+        income: Math.round(income),
+        expenses: Math.round(expenses),
+        population: newPopulation,
+        lastDayRevenue: netRevenue,
+        satisfaction,
+        populationCapacity: Math.floor(capacity),
+        resources,
+        demandIndicators,
+        efficiencyByType: {
+          residential: residentialEff,
+          commercial: commercialEff,
+          industrial: industrialEff,
+        },
       },
     })
   }
@@ -440,7 +435,7 @@ export class EconomySystem {
   private getEventMult(
     target: import('shared/game-types').EventModifierTarget
   ): number {
-    return this.eventSystem?.getActiveMultiplier(target) ?? 1
+    return this.eventSystem.getActiveMultiplier(target) ?? 1
   }
 
   private hasAdjacentWater(x: number, y: number): boolean {

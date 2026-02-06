@@ -1,14 +1,10 @@
-import { useState } from 'react'
-import type { GameState } from 'shared/game-types'
+import { memo, useState } from 'react'
 import { MILESTONES } from '../constants'
+import { useMilestones } from '../hooks/use-game-selector'
 
-interface MilestonePanelProps {
-  state: GameState
-}
-
-export function MilestonePanel({ state }: MilestonePanelProps) {
+export const MilestonePanel = memo(function MilestonePanel() {
   const [collapsed, setCollapsed] = useState(true)
-  const { milestones } = state
+  const milestones = useMilestones()
   const achievedCount = milestones.achieved.length
   const totalCount = MILESTONES.length
 
@@ -54,4 +50,4 @@ export function MilestonePanel({ state }: MilestonePanelProps) {
       )}
     </div>
   )
-}
+})

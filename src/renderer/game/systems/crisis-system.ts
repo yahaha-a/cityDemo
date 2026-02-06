@@ -25,14 +25,11 @@ import type { PolicySystem } from './policy-system'
  */
 export class CrisisSystem {
   private stateManager: GameStateManager
-  private policySystem: PolicySystem | null = null
+  private policySystem: PolicySystem
   private crisisCooldown = CRISIS_BASE_COOLDOWN
 
-  constructor(stateManager: GameStateManager) {
+  constructor(stateManager: GameStateManager, policySystem: PolicySystem) {
     this.stateManager = stateManager
-  }
-
-  setPolicySystem(policySystem: PolicySystem): void {
     this.policySystem = policySystem
   }
 
@@ -80,7 +77,7 @@ export class CrisisSystem {
       this.updateChallengeConditions(challenge, state)
     }
 
-    this.stateManager.updateChallengeSilent(challenge)
+    this.stateManager.update({ challenge })
   }
 
   /** 响应危机选项 */
@@ -125,11 +122,14 @@ export class CrisisSystem {
       switch (effect.type) {
         case 'satisfaction': {
           const econ = state.economy
-          this.stateManager.updateEconomy({
-            satisfaction: Math.max(
-              0,
-              Math.min(100, econ.satisfaction + effect.value)
-            ),
+          this.stateManager.update({
+            economy: {
+              ...econ,
+              satisfaction: Math.max(
+                0,
+                Math.min(100, econ.satisfaction + effect.value)
+              ),
+            },
           })
           break
         }
@@ -139,7 +139,9 @@ export class CrisisSystem {
         case 'population_loss': {
           const econ = state.economy
           const newPop = Math.max(0, econ.population - effect.value)
-          this.stateManager.updateEconomy({ population: newPop })
+          this.stateManager.update({
+            economy: { ...econ, population: newPop },
+          })
           break
         }
         case 'prevent_chain':
@@ -173,7 +175,7 @@ export class CrisisSystem {
       )
       if (chainTemplate) {
         challenge.pendingCrisis = chainTemplate
-        this.stateManager.updateChallenge(challenge)
+        this.stateManager.update({ challenge })
         return true
       }
     }
@@ -183,7 +185,7 @@ export class CrisisSystem {
       CRISIS_BASE_COOLDOWN +
       Math.floor((Math.random() - 0.5) * 2 * CRISIS_COOLDOWN_VARIANCE)
 
-    this.stateManager.updateChallenge(challenge)
+    this.stateManager.update({ challenge })
     return true
   }
 
@@ -212,12 +214,12 @@ export class CrisisSystem {
     challenge.deficitDays = 0
     challenge.lowSatisfactionDays = 0
     challenge.winProgress = 0
-    this.stateManager.updateChallenge(challenge)
+    this.stateManager.update({ challenge })
   }
 
   private rollCrisis(currentDay: number): CrisisTemplate | null {
     const crisisFreqMult =
-      this.policySystem?.getAggregatedEffect('crisis_frequency_multiplier') ?? 1
+      this.policySystem.getAggregatedEffect('crisis_frequency_multiplier') ?? 1
 
     const available = CRISIS_TEMPLATES.filter(t => {
       if (currentDay < t.minDay) return false
@@ -248,7 +250,7 @@ export class CrisisSystem {
     return avgResistance >= (crisis.preventionThreshold ?? 0.5)
   }
 
-  private hasFacility(facilityType: TileType): boolean {
+  hasFacility(facilityType: TileType): boolean {
     const state = this.stateManager.getState()
     const { map } = state
     for (let y = 0; y < MAP_HEIGHT; y++) {

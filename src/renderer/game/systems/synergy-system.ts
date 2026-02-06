@@ -166,7 +166,7 @@ export class SynergySystem {
       effMultByType,
     }
 
-    this.stateManager.updateSynergy(synergyState)
+    this.stateManager.update({ synergy: synergyState })
   }
 
   /** 查询单瓦片协同信息 */

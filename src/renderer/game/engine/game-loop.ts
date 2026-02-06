@@ -105,17 +105,21 @@ export class GameLoop {
 
     while (remaining >= DAY_DURATION_MS && daysAdvanced < maxDays) {
       remaining -= DAY_DURATION_MS
-      this.stateManager.advanceDay()
 
-      // 每日顺序: 事件 → 政策 → 设施 → 协同 → 科技 → 危机 → 经济 → 里程碑
-      this.eventSystem.processDailyEvents()
-      this.policySystem.processDailyPolicies()
-      this.facilitySystem.processDailyFacilities()
-      this.synergySystem.processDailySynergy()
-      this.techSystem.processDailyTech()
-      this.crisisSystem.processDailyCrisis()
-      this.economySystem.processDailyEconomy()
-      this.milestoneSystem.processDailyMilestones()
+      // 每日处理包在 batch 中，一天只触发一次 React 重渲染
+      this.stateManager.batch(() => {
+        this.stateManager.advanceDay()
+
+        // 每日顺序: 事件 → 政策 → 设施 → 协同 → 科技 → 危机 → 经济 → 里程碑
+        this.eventSystem.processDailyEvents()
+        this.policySystem.processDailyPolicies()
+        this.facilitySystem.processDailyFacilities()
+        this.synergySystem.processDailySynergy()
+        this.techSystem.processDailyTech()
+        this.crisisSystem.processDailyCrisis()
+        this.economySystem.processDailyEconomy()
+        this.milestoneSystem.processDailyMilestones()
+      })
       daysAdvanced++
 
       // 如果危机弹出，暂停后续推进
@@ -130,6 +134,6 @@ export class GameLoop {
       remaining = 0
     }
 
-    this.stateManager.setTickAccumulator(remaining)
+    this.stateManager.getState().time.tickAccumulator = remaining
   }
 }

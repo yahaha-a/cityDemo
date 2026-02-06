@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react'
-import type { GameState } from 'shared/game-types'
+import { useEffect, useRef, useState } from 'react'
 import { MILESTONES } from '../constants'
+import { useEvents, useMilestones } from '../hooks/use-game-selector'
 
 interface ToastMessage {
   id: number
@@ -8,31 +8,29 @@ interface ToastMessage {
   type: 'milestone' | 'event_start' | 'event_end'
 }
 
-let toastIdCounter = 0
+export function EventToast() {
+  const events = useEvents()
+  const milestones = useMilestones()
 
-interface EventToastProps {
-  state: GameState
-}
-
-export function EventToast({ state }: EventToastProps) {
+  const toastIdRef = useRef(0)
   const [toasts, setToasts] = useState<ToastMessage[]>([])
   const [prevAchieved, setPrevAchieved] = useState<string[]>(
-    state.milestones.achieved
+    milestones.achieved
   )
   const [prevActiveEventIds, setPrevActiveEventIds] = useState<string[]>(
-    state.events.activeEvents.map(e => e.id)
+    events.activeEvents.map(e => e.id)
   )
 
   useEffect(() => {
     const newToasts: ToastMessage[] = []
 
     // 检查新达成的里程碑
-    for (const id of state.milestones.achieved) {
+    for (const id of milestones.achieved) {
       if (!prevAchieved.includes(id)) {
         const milestone = MILESTONES.find(m => m.id === id)
         if (milestone) {
           newToasts.push({
-            id: ++toastIdCounter,
+            id: ++toastIdRef.current,
             text: `里程碑达成: ${milestone.name}`,
             type: 'milestone',
           })
@@ -41,11 +39,11 @@ export function EventToast({ state }: EventToastProps) {
     }
 
     // 检查新事件开始
-    const currentEventIds = state.events.activeEvents.map(e => e.id)
-    for (const event of state.events.activeEvents) {
+    const currentEventIds = events.activeEvents.map(e => e.id)
+    for (const event of events.activeEvents) {
       if (!prevActiveEventIds.includes(event.id)) {
         newToasts.push({
-          id: ++toastIdCounter,
+          id: ++toastIdRef.current,
           text: `事件: ${event.name} - ${event.description}`,
           type: 'event_start',
         })
@@ -56,7 +54,7 @@ export function EventToast({ state }: EventToastProps) {
     for (const id of prevActiveEventIds) {
       if (!currentEventIds.includes(id)) {
         newToasts.push({
-          id: ++toastIdCounter,
+          id: ++toastIdRef.current,
           text: '事件已结束',
           type: 'event_end',
         })
@@ -67,9 +65,9 @@ export function EventToast({ state }: EventToastProps) {
       setToasts(prev => [...prev, ...newToasts])
     }
 
-    setPrevAchieved(state.milestones.achieved)
+    setPrevAchieved(milestones.achieved)
     setPrevActiveEventIds(currentEventIds)
-  }, [state.milestones.achieved, state.events.activeEvents])
+  }, [milestones.achieved, events.activeEvents])
 
   // 自动移除过期的 toast
   useEffect(() => {

@@ -1,5 +1,8 @@
 import { useState, useCallback } from 'react'
-import { GameCanvas, type GameEngine } from './game-canvas'
+import { GameCanvas } from './game-canvas'
+import type { GameEngine } from '../engine/game-engine'
+import { GameEngineProvider, useEngine } from '../context/game-engine-context'
+import { GameErrorBoundary } from './game-error-boundary'
 import { Toolbar } from './toolbar'
 import { InfoPanel } from './info-panel'
 import { TimeControl } from './time-control'
@@ -10,16 +13,25 @@ import { PolicyPanel } from './policy-panel'
 import { TechPanel } from './tech-panel'
 import { CrisisDialog } from './crisis-dialog'
 import { SpecializationPanel } from './specialization-panel'
-import { useGameState } from '../hooks/use-game-state'
-import type { ToolType } from 'shared/game-types'
+import {
+  useTechState,
+  useChallenge,
+  useSpecialization,
+} from '../hooks/use-game-selector'
+import { GameButton } from './ui/game-button'
+import { ModalOverlay } from './ui/modal-overlay'
 
-function GameUI({ engine }: { engine: GameEngine }) {
-  const state = useGameState(engine.stateManager)
+function GameUI() {
+  const engine = useEngine()
   const [showPolicy, setShowPolicy] = useState(false)
   const [showTech, setShowTech] = useState(false)
 
+  const tech = useTechState()
+  const challenge = useChallenge()
+  const specialization = useSpecialization()
+
   const handleSelectTool = useCallback(
-    (tool: ToolType) => {
+    (tool: import('shared/game-types').ToolType) => {
       engine.stateManager.setTool(tool)
     },
     [engine.stateManager]
@@ -31,105 +43,82 @@ function GameUI({ engine }: { engine: GameEngine }) {
 
   return (
     <>
-      <Toolbar
-        currentTool={state.currentTool}
-        demandIndicators={state.economy.demandIndicators}
-        money={state.money}
-        onSelectTool={handleSelectTool}
-        state={state}
-      />
-      <InfoPanel
-        mapSystem={engine.mapSystem}
-        roadSystem={engine.roadSystem}
-        state={state}
-      />
-      <MilestonePanel state={state} />
-      <EventToast state={state} />
-      <TimeControl state={state} stateManager={engine.stateManager} />
-      <GameMenu onNewGame={handleNewGame} saveSystem={engine.saveSystem} />
+      <Toolbar onSelectTool={handleSelectTool} />
+      <InfoPanel />
+      <MilestonePanel />
+      <EventToast />
+      <TimeControl />
+      <GameMenu onNewGame={handleNewGame} />
 
       {/* 底部面板切换按钮 */}
       <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-2">
-        <button
-          className={`px-3 py-1.5 rounded text-xs transition-colors ${
-            showPolicy
-              ? 'bg-blue-600 text-white'
-              : 'bg-gray-800/90 text-gray-300 hover:bg-gray-700 border border-gray-700'
-          }`}
+        <GameButton
+          className={showPolicy ? '' : 'border border-gray-700'}
+          intent={showPolicy ? 'active' : 'default'}
           onClick={() => {
             setShowPolicy(!showPolicy)
             setShowTech(false)
           }}
-          type="button"
+          variant="toggle"
         >
           政策
-        </button>
-        <button
-          className={`px-3 py-1.5 rounded text-xs transition-colors ${
-            showTech
-              ? 'bg-purple-600 text-white'
-              : 'bg-gray-800/90 text-gray-300 hover:bg-gray-700 border border-gray-700'
-          }`}
+        </GameButton>
+        <GameButton
+          className={showTech ? '' : 'border border-gray-700'}
+          intent={showTech ? 'purple' : 'default'}
           onClick={() => {
             setShowTech(!showTech)
             setShowPolicy(false)
           }}
-          type="button"
+          variant="toggle"
         >
-          科技 {state.tech.dailyRP > 0 ? `(${state.tech.dailyRP} RP/日)` : ''}
-        </button>
-        {state.challenge.challengeMode && (
+          科技 {tech.dailyRP > 0 ? `(${tech.dailyRP} RP/日)` : ''}
+        </GameButton>
+        {challenge.challengeMode && (
           <div className="px-3 py-1.5 rounded text-xs bg-gray-800/90 border border-gray-700 text-gray-300">
-            {state.challenge.gameOver
-              ? `败北 - 分数: ${state.challenge.score}`
-              : state.challenge.gameWon
-                ? `胜利! 分数: ${state.challenge.score}`
-                : `挑战中 ${state.challenge.winProgress > 0 ? `(${state.challenge.winProgress}/30)` : ''}`}
+            {challenge.gameOver
+              ? `败北 - 分数: ${challenge.score}`
+              : challenge.gameWon
+                ? `胜利! 分数: ${challenge.score}`
+                : `挑战中 ${challenge.winProgress > 0 ? `(${challenge.winProgress}/30)` : ''}`}
           </div>
         )}
       </div>
 
       {/* 条件面板 */}
-      {showPolicy && (
-        <PolicyPanel policySystem={engine.policySystem} state={state} />
-      )}
-      {showTech && <TechPanel state={state} techSystem={engine.techSystem} />}
+      {showPolicy && <PolicyPanel />}
+      {showTech && <TechPanel />}
 
       {/* 危机弹窗 */}
-      <CrisisDialog crisisSystem={engine.crisisSystem} state={state} />
+      <CrisisDialog />
 
       {/* 特色选择（首次解锁时显示） */}
-      {state.specialization.available.length > 0 &&
-        !state.specialization.chosen && (
-          <SpecializationPanel
-            specializationSystem={engine.specializationSystem}
-            state={state}
-          />
-        )}
+      {specialization.available.length > 0 && !specialization.chosen && (
+        <SpecializationPanel />
+      )}
 
       {/* 挑战模式游戏结束覆盖 */}
-      {state.challenge.challengeMode &&
-        (state.challenge.gameOver || state.challenge.gameWon) && (
-          <div className="absolute inset-0 bg-black/70 flex items-center justify-center z-30">
-            <div className="bg-gray-900 rounded-lg border border-gray-600 p-6 text-center">
-              <h2
-                className={`text-2xl font-bold mb-2 ${state.challenge.gameWon ? 'text-green-400' : 'text-red-400'}`}
-              >
-                {state.challenge.gameWon ? '胜利!' : '败北'}
-              </h2>
-              <div className="text-lg text-white mb-4">
-                最终得分: {state.challenge.score}
-              </div>
-              <button
-                className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-500 text-sm"
-                onClick={handleNewGame}
-                type="button"
-              >
-                重新开始
-              </button>
+      {challenge.challengeMode && (challenge.gameOver || challenge.gameWon) && (
+        <ModalOverlay className="bg-black/70">
+          <div className="bg-gray-900 rounded-lg border border-gray-600 p-6 text-center">
+            <h2
+              className={`text-2xl font-bold mb-2 ${challenge.gameWon ? 'text-green-400' : 'text-red-400'}`}
+            >
+              {challenge.gameWon ? '胜利!' : '败北'}
+            </h2>
+            <div className="text-lg text-white mb-4">
+              最终得分: {challenge.score}
             </div>
+            <GameButton
+              intent="primary"
+              onClick={handleNewGame}
+              variant="action"
+            >
+              重新开始
+            </GameButton>
           </div>
-        )}
+        </ModalOverlay>
+      )}
     </>
   )
 }
@@ -144,7 +133,13 @@ export function GameLayout() {
   return (
     <div className="relative w-screen h-screen overflow-hidden bg-gray-950">
       <GameCanvas onEngineReady={handleEngineReady} />
-      {engine && <GameUI engine={engine} />}
+      {engine && (
+        <GameEngineProvider engine={engine}>
+          <GameErrorBoundary>
+            <GameUI />
+          </GameErrorBoundary>
+        </GameEngineProvider>
+      )}
     </div>
   )
 }
