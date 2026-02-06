@@ -8,7 +8,7 @@ import tsconfigPathsPlugin from 'vite-tsconfig-paths'
 import reactPlugin from '@vitejs/plugin-react'
 
 import { settings } from './src/lib/electron-router-dom'
-import { main, resources } from './package.json'
+import { main, resources, version } from './package.json'
 
 const [nodeModules, devFolder] = normalize(dirname(main)).split(/\/|\\/g)
 const devPath = [nodeModules, devFolder].join('/')
@@ -53,6 +53,7 @@ export default defineConfig({
     define: {
       'process.env.NODE_ENV': JSON.stringify(process.env.NODE_ENV),
       'process.platform': JSON.stringify(process.platform),
+      __APP_VERSION__: JSON.stringify(version),
     },
 
     server: {

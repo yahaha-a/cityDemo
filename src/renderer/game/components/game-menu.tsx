@@ -3,21 +3,43 @@ import type { SaveSlot } from '../systems/save-system'
 import { useEngine } from '../context/game-engine-context'
 import { GameButton } from './ui/game-button'
 import { ModalOverlay } from './ui/modal-overlay'
+import { ConfirmDialog } from './menu/confirm-dialog'
+import { MenuStatsView } from './menu/menu-stats-view'
+import { MenuGuideView } from './menu/menu-guide-view'
+import { MenuSettingsView } from './menu/menu-settings-view'
+import { ChevronRight } from 'lucide-react'
 
 interface GameMenuProps {
-  onNewGame: () => void
+  onResetGame: () => void
+  onReturnToStart?: () => void
   isOpen: boolean
   onClose: () => void
 }
 
-type MenuView = 'main' | 'save' | 'load'
+type MenuView = 'main' | 'save' | 'load' | 'stats' | 'guide' | 'settings'
+type ConfirmAction = 'reset' | 'returnToStart' | null
 
-export function GameMenu({ onNewGame, isOpen, onClose }: GameMenuProps) {
+const VIEW_TITLES: Record<MenuView, string> = {
+  main: '游戏菜单',
+  save: '保存游戏',
+  load: '加载存档',
+  stats: '游戏统计',
+  guide: '操作指南',
+  settings: '游戏设置',
+}
+
+export function GameMenu({
+  onResetGame,
+  onReturnToStart,
+  isOpen,
+  onClose,
+}: GameMenuProps) {
   const { saveSystem } = useEngine()
   const [view, setView] = useState<MenuView>('main')
   const [slots, setSlots] = useState<SaveSlot[]>([])
   const [newSaveName, setNewSaveName] = useState('')
   const [message, setMessage] = useState<string | null>(null)
+  const [confirmAction, setConfirmAction] = useState<ConfirmAction>(null)
   const messageTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // 组件卸载时清理 timeout
@@ -34,8 +56,24 @@ export function GameMenu({ onNewGame, isOpen, onClose }: GameMenuProps) {
     if (isOpen) {
       setView('main')
       setSlots(saveSystem.getSaveSlots())
+      setConfirmAction(null)
     }
   }, [isOpen, saveSystem])
+
+  // Escape 键：确认弹窗打开时优先关闭弹窗
+  useEffect(() => {
+    if (!isOpen) return
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        if (confirmAction) {
+          e.stopPropagation()
+          setConfirmAction(null)
+        }
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown, true)
+    return () => window.removeEventListener('keydown', handleKeyDown, true)
+  }, [isOpen, confirmAction])
 
   const showMessage = (msg: string) => {
     if (messageTimeoutRef.current) {
@@ -53,12 +91,7 @@ export function GameMenu({ onNewGame, isOpen, onClose }: GameMenuProps) {
     onClose()
     setView('main')
     setNewSaveName('')
-  }
-
-  const handleNewGame = () => {
-    onNewGame()
-    closeMenu()
-    showMessage('已开始新游戏')
+    setConfirmAction(null)
   }
 
   const handleSaveView = () => {
@@ -105,6 +138,17 @@ export function GameMenu({ onNewGame, isOpen, onClose }: GameMenuProps) {
     refreshSlots()
   }
 
+  const handleConfirm = () => {
+    if (confirmAction === 'reset') {
+      onResetGame()
+      closeMenu()
+      showMessage('已重新开始')
+    } else if (confirmAction === 'returnToStart') {
+      onReturnToStart?.()
+    }
+    setConfirmAction(null)
+  }
+
   return (
     <>
       {/* 消息提示 */}
@@ -123,50 +167,73 @@ export function GameMenu({ onNewGame, isOpen, onClose }: GameMenuProps) {
           />
 
           {/* 菜单面板 - 皮革书封面风格 */}
-          <div className="relative bg-gradient-to-b from-[var(--game-wood)] to-[var(--game-wood-dark)] rounded-[var(--game-radius-lg)] border-4 border-[var(--game-wood-dark)] shadow-[0_8px_32px_oklch(0.2_0.05_55/0.4)] min-w-[340px] max-h-[80vh] overflow-hidden">
+          <div className="relative bg-gradient-to-b from-[var(--game-wood)] to-[var(--game-wood-dark)] rounded-[var(--game-radius-lg)] border-4 border-[var(--game-wood-dark)] shadow-[0_8px_32px_oklch(0.2_0.05_55/0.4)] min-w-[380px] max-h-[80vh] overflow-hidden">
             {/* 内页羊皮纸 */}
             <div className="m-2 game-parchment-bg rounded-[var(--game-radius-md)] overflow-hidden">
               {/* 标题栏 */}
               <div className="flex items-center justify-between px-4 py-3 border-b-2 border-dashed border-[var(--game-wood-light)]">
                 <h2 className="text-lg font-[family-name:var(--font-heading)] text-[var(--game-text-heading)]">
-                  {view === 'main' && '游戏菜单'}
-                  {view === 'save' && '保存游戏'}
-                  {view === 'load' && '加载游戏'}
+                  {VIEW_TITLES[view]}
                 </h2>
               </div>
 
               {/* 主菜单 */}
               {view === 'main' && (
                 <div className="p-2">
+                  {/* 游戏操作 */}
                   <GameButton
                     className="w-full mb-1"
-                    onClick={handleNewGame}
+                    onClick={closeMenu}
                     variant="menu"
                   >
-                    新游戏
+                    继续游戏
                   </GameButton>
-                  <GameButton
-                    className="w-full mb-1"
+                  <MenuItemWithChevron
+                    label="保存游戏"
                     onClick={handleSaveView}
-                    variant="menu"
-                  >
-                    保存游戏
-                  </GameButton>
+                  />
+                  <MenuItemWithChevron
+                    label="加载存档"
+                    onClick={handleLoadView}
+                  />
+
+                  {/* 分割线 */}
+                  <div className="my-2 border-t border-dashed border-[var(--game-wood-light)]" />
+
+                  {/* 信息与设置 */}
+                  <MenuItemWithChevron
+                    label="游戏统计"
+                    onClick={() => setView('stats')}
+                  />
+                  <MenuItemWithChevron
+                    label="操作指南"
+                    onClick={() => setView('guide')}
+                  />
+                  <MenuItemWithChevron
+                    label="游戏设置"
+                    onClick={() => setView('settings')}
+                  />
+
+                  {/* 分割线 */}
+                  <div className="my-2 border-t border-dashed border-[var(--game-wood-light)]" />
+
+                  {/* 危险操作 */}
                   <GameButton
                     className="w-full mb-1"
-                    onClick={handleLoadView}
+                    onClick={() => setConfirmAction('reset')}
                     variant="menu"
                   >
-                    加载游戏
+                    重新开始
                   </GameButton>
-                  <div className="my-2 border-t border-dashed border-[var(--game-wood-light)]" />
-                  <GameButton
-                    className="w-full"
-                    onClick={() => window.App.quit()}
-                    variant="menu"
-                  >
-                    退出游戏
-                  </GameButton>
+                  {onReturnToStart && (
+                    <GameButton
+                      className="w-full"
+                      onClick={() => setConfirmAction('returnToStart')}
+                      variant="menu"
+                    >
+                      返回主菜单
+                    </GameButton>
+                  )}
                 </div>
               )}
 
@@ -256,11 +323,67 @@ export function GameMenu({ onNewGame, isOpen, onClose }: GameMenuProps) {
                   </GameButton>
                 </div>
               )}
+
+              {/* 统计视图 */}
+              {view === 'stats' && (
+                <MenuStatsView onBack={() => setView('main')} />
+              )}
+
+              {/* 操作指南 */}
+              {view === 'guide' && (
+                <MenuGuideView onBack={() => setView('main')} />
+              )}
+
+              {/* 游戏设置 */}
+              {view === 'settings' && (
+                <MenuSettingsView onBack={() => setView('main')} />
+              )}
             </div>
           </div>
         </div>
       )}
+
+      {/* 确认弹窗 */}
+      {confirmAction === 'reset' && (
+        <ConfirmDialog
+          confirmLabel="重新开始"
+          intent="danger"
+          message="当前未保存的进度将会丢失，确定要重新开始吗？"
+          onCancel={() => setConfirmAction(null)}
+          onConfirm={handleConfirm}
+          title="重新开始"
+        />
+      )}
+      {confirmAction === 'returnToStart' && (
+        <ConfirmDialog
+          confirmLabel="返回主菜单"
+          intent="danger"
+          message="当前未保存的进度将会丢失，确定要返回主菜单吗？"
+          onCancel={() => setConfirmAction(null)}
+          onConfirm={handleConfirm}
+          title="返回主菜单"
+        />
+      )}
     </>
+  )
+}
+
+function MenuItemWithChevron({
+  label,
+  onClick,
+}: {
+  label: string
+  onClick: () => void
+}) {
+  return (
+    <GameButton
+      className="w-full mb-1 flex items-center justify-between"
+      onClick={onClick}
+      variant="menu"
+    >
+      <span>{label}</span>
+      <ChevronRight className="text-[var(--game-text-muted)]" size={16} />
+    </GameButton>
   )
 }
 

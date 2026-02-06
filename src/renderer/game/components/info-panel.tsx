@@ -1,20 +1,9 @@
 import { useState } from 'react'
-import {
-  TILE_LABELS,
-  BUILDING_COSTS,
-} from '../constants'
+import { TILE_LABELS, BUILDING_COSTS } from '../constants'
 import { TileType, DemandLevel } from 'shared/game-types'
 import { useEngine } from '../context/game-engine-context'
-import {
-  useMoney,
-  useEconomy,
-  useEvents,
-} from '../hooks/use-game-selector'
-import {
-  GamePanel,
-  GamePanelHeader,
-  GamePanelDivider,
-} from './ui/game-panel'
+import { useMoney, useEconomy, useEvents } from '../hooks/use-game-selector'
+import { GamePanel, GamePanelHeader, GamePanelDivider } from './ui/game-panel'
 import { ProgressBar } from './ui/progress-bar'
 import {
   DEMAND_TEXT_COLORS,
@@ -105,12 +94,7 @@ export function InfoPanel() {
   const usage = engine.mapSystem.getUsagePercent()
   const connectionStats = engine.roadSystem.getConnectionStats()
 
-  const {
-    resources,
-    satisfaction,
-    population,
-    populationCapacity,
-  } = economy
+  const { resources, satisfaction, population, populationCapacity } = economy
 
   const popTrend =
     satisfaction >= 50
@@ -253,7 +237,9 @@ export function InfoPanel() {
           <div className="flex justify-between">
             <span>住宅</span>
             <span
-              className={DEMAND_TEXT_COLORS[economy.demandIndicators.residential]}
+              className={
+                DEMAND_TEXT_COLORS[economy.demandIndicators.residential]
+              }
             >
               {DEMAND_LABELS[economy.demandIndicators.residential]}
             </span>
@@ -261,7 +247,9 @@ export function InfoPanel() {
           <div className="flex justify-between">
             <span>商业</span>
             <span
-              className={DEMAND_TEXT_COLORS[economy.demandIndicators.commercial]}
+              className={
+                DEMAND_TEXT_COLORS[economy.demandIndicators.commercial]
+              }
             >
               {DEMAND_LABELS[economy.demandIndicators.commercial]}
             </span>
@@ -269,7 +257,9 @@ export function InfoPanel() {
           <div className="flex justify-between">
             <span>工业</span>
             <span
-              className={DEMAND_TEXT_COLORS[economy.demandIndicators.industrial]}
+              className={
+                DEMAND_TEXT_COLORS[economy.demandIndicators.industrial]
+              }
             >
               {DEMAND_LABELS[economy.demandIndicators.industrial]}
             </span>

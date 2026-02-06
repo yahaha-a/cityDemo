@@ -11,9 +11,7 @@ interface TechPanelProps {
   dailyRP: number
 }
 
-export const TechPanel = memo(function TechPanel({
-  dailyRP,
-}: TechPanelProps) {
+export const TechPanel = memo(function TechPanel({ dailyRP }: TechPanelProps) {
   const engine = useEngine()
   const tech = useTechState()
   const tiers = [1, 2, 3, 4]
