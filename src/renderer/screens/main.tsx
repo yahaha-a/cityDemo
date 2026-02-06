@@ -1,38 +1,42 @@
-import { Terminal } from 'lucide-react'
-import { useEffect } from 'react'
+import { useState, useCallback } from 'react'
+import { GameLayout } from 'renderer/game/components/game-layout'
+import { StartScreen } from 'renderer/game/components/start-screen'
 
-import {
-  Alert,
-  AlertTitle,
-  AlertDescription,
-} from 'renderer/components/ui/alert'
-
-// The "App" comes from the context bridge in preload/index.ts
-const { App } = window
+type ScreenState = { screen: 'start' } | { screen: 'game'; loadSlotId?: string }
 
 export function MainScreen() {
-  useEffect(() => {
-    // check the console on dev tools
-    App.sayHelloFromBridge()
+  const [state, setState] = useState<ScreenState>({ screen: 'start' })
+
+  const handleNewGame = useCallback(() => {
+    setState({ screen: 'game' })
   }, [])
 
-  const userName = App.username || 'there'
+  const handleLoadGame = useCallback((slotId: string) => {
+    setState({ screen: 'game', loadSlotId: slotId })
+  }, [])
+
+  const handleReturnToStart = useCallback(() => {
+    setState({ screen: 'start' })
+  }, [])
+
+  const handleQuit = useCallback(() => {
+    window.App.quit()
+  }, [])
+
+  if (state.screen === 'start') {
+    return (
+      <StartScreen
+        onLoadGame={handleLoadGame}
+        onNewGame={handleNewGame}
+        onQuit={handleQuit}
+      />
+    )
+  }
 
   return (
-    <main className="flex flex-col items-center justify-center h-screen bg-background">
-      <Alert className="mt-5 bg-transparent border-transparent text-accent w-fit">
-        <AlertTitle className="text-5xl text-teal-400">
-          Hi, {userName}!
-        </AlertTitle>
-
-        <AlertDescription className="flex items-center gap-2 text-lg">
-          <Terminal className="size-6 text-fuchsia-300" />
-
-          <span className="text-gray-400">
-            It's time to build something awesome!
-          </span>
-        </AlertDescription>
-      </Alert>
-    </main>
+    <GameLayout
+      loadSlotId={state.loadSlotId}
+      onReturnToStart={handleReturnToStart}
+    />
   )
 }
