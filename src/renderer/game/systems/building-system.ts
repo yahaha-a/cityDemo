@@ -3,6 +3,9 @@ import {
   TerrainType,
   ToolType,
   toolToTileType,
+  toolToRoadType,
+  isRoadTool,
+  isTerraformTool,
   isFacilityType,
   isCoreBuilding,
 } from 'shared/types'
@@ -14,12 +17,15 @@ import {
   UPGRADE_COST_MULTIPLIER,
   UPGRADE_MIN_EFFICIENCY,
 } from '../config'
+import { ROAD_CONFIGS } from '../config/road'
+import { getTerraformAction } from '../config/terraform'
 import { getFacilityTemplate } from '../config'
 import type { GameStateManager } from '../engine/game-state'
 import type { IGameSystem, SystemRegistry } from '../engine/system-registry'
 import type { RoadSystem } from './road-system'
 import type { FacilitySystem } from './facility-system'
 import type { MapSystem } from './map-system'
+import type { StructureSystem } from './structure-system'
 import { isInBounds } from '../input/coordinate-utils'
 
 /**
@@ -31,6 +37,7 @@ export class BuildingSystem implements IGameSystem {
   private roadSystem!: RoadSystem
   private facilitySystem!: FacilitySystem
   private mapSystem!: MapSystem
+  private structureSystem!: StructureSystem
 
   constructor(
     stateManager: GameStateManager,
@@ -46,6 +53,7 @@ export class BuildingSystem implements IGameSystem {
     this.roadSystem = registry.get<RoadSystem>('road')
     this.facilitySystem = registry.get<FacilitySystem>('facility')
     this.mapSystem = registry.get<MapSystem>('map')
+    this.structureSystem = registry.get<StructureSystem>('structure')
   }
 
   /**
@@ -61,6 +69,7 @@ export class BuildingSystem implements IGameSystem {
     if (currentTool === ToolType.Select) return false
     if (currentTool === ToolType.Demolish) return this.demolish(x, y)
     if (currentTool === ToolType.Upgrade) return this.upgrade(x, y)
+    if (isTerraformTool(currentTool)) return this.terraform(x, y, currentTool)
 
     return this.build(x, y, currentTool)
   }
@@ -71,6 +80,11 @@ export class BuildingSystem implements IGameSystem {
 
     const currentTile = this.stateManager.getTileAt(x, y)
     if (!currentTile || currentTile.type !== TileType.Empty) return false
+
+    // 道路工具特殊处理
+    if (isRoadTool(tool)) {
+      return this.buildRoad(x, y, tool)
+    }
 
     // 水域不可建造
     if (currentTile.terrain === TerrainType.Water) return false
@@ -90,6 +104,33 @@ export class BuildingSystem implements IGameSystem {
     if (!this.stateManager.spendMoney(actualCost)) return false
 
     this.stateManager.setTileAt(x, y, tileType, 1)
+    this.roadSystem.updateLocalConnections(x, y)
+    this.mapSystem.invalidateMapStats()
+
+    return true
+  }
+
+  private buildRoad(x: number, y: number, tool: ToolType): boolean {
+    const roadType = toolToRoadType[tool]
+    if (!roadType) return false
+
+    const currentTile = this.stateManager.getTileAt(x, y)
+    if (!currentTile || currentTile.type !== TileType.Empty) return false
+
+    const config = ROAD_CONFIGS[roadType]
+
+    // 地形限制检查
+    if (config.terrainAllowances.length > 0) {
+      // 有白名单时，地形必须在白名单中
+      if (!config.terrainAllowances.includes(currentTile.terrain)) return false
+    } else {
+      // 无白名单时，检查黑名单
+      if (config.terrainRestrictions.includes(currentTile.terrain)) return false
+    }
+
+    if (!this.stateManager.spendMoney(config.buildCost)) return false
+
+    this.stateManager.setTileAt(x, y, TileType.Road, 1, roadType)
     this.roadSystem.updateLocalConnections(x, y)
     this.mapSystem.invalidateMapStats()
 
@@ -125,8 +166,31 @@ export class BuildingSystem implements IGameSystem {
     const currentTile = this.stateManager.getTileAt(x, y)
     if (!currentTile || currentTile.type === TileType.Empty) return false
 
+    // 多格建筑委托给 StructureSystem
+    if (currentTile.structureId) {
+      this.structureSystem.demolishStructure(currentTile.structureId)
+      return true
+    }
+
     // 计算退款
-    if (isFacilityType(currentTile.type)) {
+    if (currentTile.type === TileType.Road) {
+      // 道路退款 - 根据道路子类型
+      const roadType = currentTile.roadType
+      if (roadType) {
+        const roadConfig = ROAD_CONFIGS[roadType]
+        this.stateManager.addMoney(
+          Math.floor(roadConfig.buildCost * DEMOLISH_REFUND_RATIO)
+        )
+      } else {
+        const baseCost =
+          BUILDING_COSTS[TileType.Road as keyof typeof BUILDING_COSTS]
+        if (baseCost !== undefined) {
+          this.stateManager.addMoney(
+            Math.floor(baseCost * DEMOLISH_REFUND_RATIO)
+          )
+        }
+      }
+    } else if (isFacilityType(currentTile.type)) {
       // 设施退款
       const template = getFacilityTemplate(currentTile.type)
       if (template) {
@@ -199,6 +263,35 @@ export class BuildingSystem implements IGameSystem {
 
     this.stateManager.upgradeTileLevel(x, y)
     this.mapSystem.invalidateMapStats()
+    return true
+  }
+
+  private terraform(x: number, y: number, tool: ToolType): boolean {
+    const tile = this.stateManager.getTileAt(x, y)
+    if (!tile) return false
+
+    // 只有空地可以进行地形改造
+    if (tile.type !== TileType.Empty) return false
+
+    const action = getTerraformAction(tool)
+    if (!action) return false
+
+    // 检查地形兼容性
+    if (!action.fromTerrains.includes(tile.terrain)) return false
+
+    // 检查科技解锁
+    if (action.unlockTech) {
+      const state = this.stateManager.getState()
+      if (!state.tech.researched.includes(action.unlockTech)) return false
+    }
+
+    // 扣费
+    if (!this.stateManager.spendMoney(action.cost)) return false
+
+    // 记录原始地形并修改
+    this.stateManager.setTerrainAt(x, y, action.toTerrain, tile.terrain)
+    this.mapSystem.invalidateMapStats()
+
     return true
   }
 

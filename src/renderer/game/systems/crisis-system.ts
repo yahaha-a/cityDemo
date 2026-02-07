@@ -255,6 +255,11 @@ export class CrisisSystem implements IGameSystem {
       return false
     }
 
+    // 检查所有要求的预防设施是否存在
+    for (const facilityType of crisis.preventedByFacilities) {
+      if (!this.hasFacility(facilityType)) return false
+    }
+
     const state = this.stateManager.getState()
     const avgResistance = state.facilities.avgCrisisResistance
     return avgResistance >= (crisis.preventionThreshold ?? 0.5)

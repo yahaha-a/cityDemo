@@ -4,6 +4,9 @@ import {
   TileType,
   ToolType,
   toolToTileType,
+  toolToRoadType,
+  isRoadTool,
+  isTerraformTool,
   isFacilityType,
   isCoreBuilding,
 } from 'shared/types'
@@ -15,6 +18,8 @@ import {
   UPGRADE_MIN_EFFICIENCY,
   getFacilityTemplate,
 } from '../config'
+import { ROAD_CONFIGS } from '../config/road'
+import { getTerraformAction } from '../config/terraform'
 
 export type HoverValidity = 'valid' | 'invalid' | 'none'
 
@@ -44,8 +49,20 @@ export class BuildQuery {
       return tile.type === TileType.Empty ? 'invalid' : 'valid'
     }
 
+    // 地形改造工具验证
+    if (isTerraformTool(currentTool)) {
+      return this.canTerraform(tile, currentTool, money, state)
+        ? 'valid'
+        : 'invalid'
+    }
+
     const targetType = toolToTileType[currentTool]
     if (!targetType) return 'valid'
+
+    // 道路工具特殊验证
+    if (isRoadTool(currentTool)) {
+      return this.canBuildRoad(tile, currentTool, money) ? 'valid' : 'invalid'
+    }
 
     if (isFacilityType(targetType)) {
       return this.canBuildFacility(tile, targetType, money, state)
@@ -103,6 +120,44 @@ export class BuildQuery {
       money >= cost &&
       isUnlocked
     )
+  }
+
+  private canTerraform(
+    tile: Tile,
+    tool: ToolType,
+    money: number,
+    state: GameState
+  ): boolean {
+    if (tile.type !== TileType.Empty) return false
+
+    const action = getTerraformAction(tool)
+    if (!action) return false
+
+    if (!action.fromTerrains.includes(tile.terrain)) return false
+
+    if (action.unlockTech) {
+      if (!state.tech.researched.includes(action.unlockTech)) return false
+    }
+
+    return money >= action.cost
+  }
+
+  private canBuildRoad(tile: Tile, tool: ToolType, money: number): boolean {
+    if (tile.type !== TileType.Empty) return false
+
+    const roadType = toolToRoadType[tool]
+    if (!roadType) return false
+
+    const config = ROAD_CONFIGS[roadType]
+
+    // 地形限制检查
+    if (config.terrainAllowances.length > 0) {
+      if (!config.terrainAllowances.includes(tile.terrain)) return false
+    } else {
+      if (config.terrainRestrictions.includes(tile.terrain)) return false
+    }
+
+    return money >= config.buildCost
   }
 
   private canBuildRegular(

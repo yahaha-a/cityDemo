@@ -30,7 +30,11 @@ export function InputPlane() {
       if (grid) {
         ge.stateManager.setHoveredTile(grid)
 
-        if (isBuildingRef.current) {
+        // 多格建筑模式下不支持拖动建造
+        if (
+          isBuildingRef.current &&
+          !ge.stateManager.getState().selectedStructureTemplate
+        ) {
           ge.buildingSystem.tryAction(grid.x, grid.y)
         }
       } else {
@@ -52,6 +56,14 @@ export function InputPlane() {
       if (!grid) return
 
       const ge = engine as GameEngine
+
+      // 多格建筑放置
+      const templateId = ge.stateManager.getState().selectedStructureTemplate
+      if (templateId) {
+        ge.structureSystem.tryPlaceStructure(templateId, grid.x, grid.y)
+        return
+      }
+
       isBuildingRef.current = true
       ge.buildingSystem.tryAction(grid.x, grid.y)
     },

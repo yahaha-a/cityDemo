@@ -23,8 +23,13 @@ export class SynergySystem implements IGameSystem {
     this.processDailySynergy()
   }
 
-  /** 修改协同规则半径（用于科技效果） */
+  /** 修改协同规则半径（用于科技效果，每个 ruleId 只允许设置一次） */
+  private appliedOverrides = new Set<string>()
+
   setRadiusOverride(ruleId: string, delta: number): void {
+    const key = `${ruleId}:${delta}`
+    if (this.appliedOverrides.has(key)) return
+    this.appliedOverrides.add(key)
     this.radiusOverrides[ruleId] = (this.radiusOverrides[ruleId] ?? 0) + delta
   }
 

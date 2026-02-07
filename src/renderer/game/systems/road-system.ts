@@ -1,7 +1,8 @@
-import { TileType } from 'shared/types'
+import { TileType, RoadType } from 'shared/types'
 import type { GameStateManager } from '../engine/game-state'
 import type { IGameSystem, SystemRegistry } from '../engine/system-registry'
 import { MAP_WIDTH, MAP_HEIGHT } from '../config'
+import { ROAD_CONFIGS } from '../config/road'
 import type { MapSystem } from './map-system'
 
 /**
@@ -21,25 +22,31 @@ export class RoadSystem implements IGameSystem {
     this.mapSystem = registry.get<MapSystem>('map')
   }
 
-  /** 四方向邻居偏移 */
-  private static NEIGHBORS = [
-    { dx: 0, dy: -1 }, // 上
-    { dx: 0, dy: 1 }, // 下
-    { dx: -1, dy: 0 }, // 左
-    { dx: 1, dy: 0 }, // 右
-  ]
-
   /**
-   * 检查指定位置是否与道路相邻
+   * 检查指定位置是否被道路网络覆盖
+   * 考虑不同道路类型的连接半径
    */
-  isAdjacentToRoad(x: number, y: number): boolean {
+  isConnectedToRoad(x: number, y: number): boolean {
     const { map } = this.stateManager.getState()
+    const maxRadius = 2 // Highway 的最大连接半径
 
-    for (const { dx, dy } of RoadSystem.NEIGHBORS) {
-      const nx = x + dx
-      const ny = y + dy
-      if (nx >= 0 && nx < MAP_WIDTH && ny >= 0 && ny < MAP_HEIGHT) {
-        if (map.tiles[ny][nx].type === TileType.Road) {
+    for (let dy = -maxRadius; dy <= maxRadius; dy++) {
+      for (let dx = -maxRadius; dx <= maxRadius; dx++) {
+        if (dx === 0 && dy === 0) continue
+        // 使用曼哈顿距离
+        const dist = Math.abs(dx) + Math.abs(dy)
+        if (dist > maxRadius) continue
+
+        const nx = x + dx
+        const ny = y + dy
+        if (nx < 0 || nx >= MAP_WIDTH || ny < 0 || ny >= MAP_HEIGHT) continue
+
+        const neighbor = map.tiles[ny][nx]
+        if (neighbor.type !== TileType.Road) continue
+
+        const roadType = neighbor.roadType ?? RoadType.Normal
+        const config = ROAD_CONFIGS[roadType]
+        if (dist <= config.connectionRadius) {
           return true
         }
       }
@@ -50,45 +57,43 @@ export class RoadSystem implements IGameSystem {
   /**
    * 更新指定位置及其邻居的连接状态
    * 用于建造/拆除时的局部更新
+   * 扩大扫描范围以覆盖 Highway 的 2 格连接半径
    */
   updateLocalConnections(centerX: number, centerY: number): void {
     const { map } = this.stateManager.getState()
     const updates: Array<{ x: number; y: number; connected: boolean }> = []
 
-    // 检查中心位置及其四周共 5 个格子
-    const positions = [
-      { x: centerX, y: centerY },
-      ...RoadSystem.NEIGHBORS.map(({ dx, dy }) => ({
-        x: centerX + dx,
-        y: centerY + dy,
-      })),
-    ]
+    // 扩大到半径 3（建筑可能在 highway radius=2 之内）
+    const scanRadius = 3
+    for (let dy = -scanRadius; dy <= scanRadius; dy++) {
+      for (let dx = -scanRadius; dx <= scanRadius; dx++) {
+        const x = centerX + dx
+        const y = centerY + dy
+        if (x < 0 || x >= MAP_WIDTH || y < 0 || y >= MAP_HEIGHT) continue
 
-    for (const { x, y } of positions) {
-      if (x < 0 || x >= MAP_WIDTH || y < 0 || y >= MAP_HEIGHT) continue
+        const tile = map.tiles[y][x]
 
-      const tile = map.tiles[y][x]
-
-      // 空地不需要连接状态
-      if (tile.type === TileType.Empty) {
-        if (tile.connected) {
-          updates.push({ x, y, connected: false })
+        // 空地不需要连接状态
+        if (tile.type === TileType.Empty) {
+          if (tile.connected) {
+            updates.push({ x, y, connected: false })
+          }
+          continue
         }
-        continue
-      }
 
-      // 道路始终视为已连接
-      if (tile.type === TileType.Road) {
-        if (!tile.connected) {
-          updates.push({ x, y, connected: true })
+        // 道路始终视为已连接
+        if (tile.type === TileType.Road) {
+          if (!tile.connected) {
+            updates.push({ x, y, connected: true })
+          }
+          continue
         }
-        continue
-      }
 
-      // 建筑检查是否与道路相邻
-      const connected = this.isAdjacentToRoad(x, y)
-      if (tile.connected !== connected) {
-        updates.push({ x, y, connected })
+        // 建筑检查是否被道路覆盖
+        const connected = this.isConnectedToRoad(x, y)
+        if (tile.connected !== connected) {
+          updates.push({ x, y, connected })
+        }
       }
     }
 
@@ -99,7 +104,7 @@ export class RoadSystem implements IGameSystem {
 
   /**
    * 更新所有建筑的连接状态
-   * 建筑只需与道路相邻即视为已连接
+   * 建筑只需在道路连接半径内即视为已连接
    */
   updateAllConnections(): void {
     const { map } = this.stateManager.getState()
@@ -125,8 +130,8 @@ export class RoadSystem implements IGameSystem {
           continue
         }
 
-        // 建筑检查是否与道路相邻
-        const connected = this.isAdjacentToRoad(x, y)
+        // 建筑检查是否被道路覆盖
+        const connected = this.isConnectedToRoad(x, y)
         if (tile.connected !== connected) {
           updates.push({ x, y, connected })
         }

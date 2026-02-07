@@ -9,7 +9,10 @@ export const INVALID_COLOR = 'rgba(255, 0, 0, 0.3)'
 /** 工具显示名称 */
 export const TOOL_LABELS: Record<string, string> = {
   select: '选择',
-  road: '道路',
+  road: '普通道路',
+  highway: '高速公路',
+  bridge: '桥梁',
+  tunnel: '隧道',
   residential: '住宅',
   commercial: '商业',
   industrial: '工业',
@@ -21,6 +24,10 @@ export const TOOL_LABELS: Record<string, string> = {
   power_plant: '发电厂',
   demolish: '拆除',
   upgrade: '升级',
+  flatten_terrain: '平整地形',
+  fill_water: '填水造陆',
+  dig_channel: '开挖水道',
+  create_hill: '堆土造丘',
 }
 
 /** 瓦片类型显示名称 */

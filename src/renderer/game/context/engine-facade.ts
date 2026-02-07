@@ -19,6 +19,7 @@ export interface GameEngineFacade {
   setTool(tool: ToolType): void
   setTimeSpeed(speed: TimeSpeed): void
   resetGame(): void
+  setSelectedStructureTemplate(templateId: string | null): void
 
   // === 政策系统 ===
   togglePolicy(policyId: string): boolean

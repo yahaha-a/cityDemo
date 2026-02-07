@@ -118,6 +118,6 @@ export class GameLoop {
       remaining = 0
     }
 
-    this.stateManager.getState().time.tickAccumulator = remaining
+    this.stateManager.setTickAccumulator(remaining)
   }
 }
