@@ -2,28 +2,39 @@ import {
   TileType,
   type MilestoneState,
   type MilestoneReward,
-} from 'shared/game-types'
+} from 'shared/types'
 import type { GameStateManager } from '../engine/game-state'
+import type { IGameSystem, SystemRegistry } from '../engine/system-registry'
 import type { EventSystem } from './event-system'
 import type { MapSystem } from './map-system'
-import { MILESTONES, SATISFACTION_STREAK_THRESHOLD } from '../constants'
+import { MILESTONES, SATISFACTION_STREAK_THRESHOLD } from '../config'
 
 /**
  * 里程碑系统 - 目标追踪和奖励发放
  */
-export class MilestoneSystem {
+export class MilestoneSystem implements IGameSystem {
+  readonly id = 'milestone'
   private stateManager: GameStateManager
-  private eventSystem: EventSystem
-  private mapSystem: MapSystem
+  private eventSystem!: EventSystem
+  private mapSystem!: MapSystem
 
   constructor(
     stateManager: GameStateManager,
-    eventSystem: EventSystem,
-    mapSystem: MapSystem
+    eventSystem?: EventSystem,
+    mapSystem?: MapSystem
   ) {
     this.stateManager = stateManager
-    this.eventSystem = eventSystem
-    this.mapSystem = mapSystem
+    if (eventSystem) this.eventSystem = eventSystem
+    if (mapSystem) this.mapSystem = mapSystem
+  }
+
+  init(registry: SystemRegistry): void {
+    this.eventSystem = registry.get<EventSystem>('event')
+    this.mapSystem = registry.get<MapSystem>('map')
+  }
+
+  processDailyTick(): void {
+    this.processDailyMilestones()
   }
 
   /** 每日里程碑检查 */

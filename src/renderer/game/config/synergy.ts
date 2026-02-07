@@ -1,4 +1,4 @@
-import { TileType, type SynergyRule } from 'shared/game-types'
+import { TileType, type SynergyRule } from 'shared/types'
 
 export const SYNERGY_RULES: SynergyRule[] = [
   {

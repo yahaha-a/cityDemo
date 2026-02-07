@@ -4,8 +4,9 @@ import {
   DemandLevel,
   type ResourceMarket,
   type DemandIndicators,
-} from 'shared/game-types'
+} from 'shared/types'
 import type { GameStateManager } from '../engine/game-state'
+import type { IGameSystem, SystemRegistry } from '../engine/system-registry'
 import type { EventSystem } from './event-system'
 import type { PolicySystem } from './policy-system'
 import type { CrisisSystem } from './crisis-system'
@@ -40,7 +41,7 @@ import {
   LEVEL_OUTPUT_MULTIPLIER,
   LEVEL_DEMAND_MULTIPLIER,
   LEVEL_INCOME_MULTIPLIER,
-} from '../constants'
+} from '../config'
 
 /** 安全比率计算：min(supply/demand, 1)，demand=0 时返回 1 */
 function safeRatio(supply: number, demand: number): number {
@@ -59,25 +60,38 @@ function toDemandLevel(ratio: number): DemandLevel {
 /**
  * 经济系统 - 供需网络模型
  */
-export class EconomySystem {
+export class EconomySystem implements IGameSystem {
+  readonly id = 'economy'
   private stateManager: GameStateManager
-  private eventSystem: EventSystem
-  private policySystem: PolicySystem
-  private crisisSystem: CrisisSystem
-  private specializationSystem: SpecializationSystem
+  private eventSystem!: EventSystem
+  private policySystem!: PolicySystem
+  private crisisSystem!: CrisisSystem
+  private specializationSystem!: SpecializationSystem
 
   constructor(
     stateManager: GameStateManager,
-    eventSystem: EventSystem,
-    policySystem: PolicySystem,
-    crisisSystem: CrisisSystem,
-    specializationSystem: SpecializationSystem
+    eventSystem?: EventSystem,
+    policySystem?: PolicySystem,
+    crisisSystem?: CrisisSystem,
+    specializationSystem?: SpecializationSystem
   ) {
     this.stateManager = stateManager
-    this.eventSystem = eventSystem
-    this.policySystem = policySystem
-    this.crisisSystem = crisisSystem
-    this.specializationSystem = specializationSystem
+    if (eventSystem) this.eventSystem = eventSystem
+    if (policySystem) this.policySystem = policySystem
+    if (crisisSystem) this.crisisSystem = crisisSystem
+    if (specializationSystem) this.specializationSystem = specializationSystem
+  }
+
+  init(registry: SystemRegistry): void {
+    this.eventSystem = registry.get<EventSystem>('event')
+    this.policySystem = registry.get<PolicySystem>('policy')
+    this.crisisSystem = registry.get<CrisisSystem>('crisis')
+    this.specializationSystem =
+      registry.get<SpecializationSystem>('specialization')
+  }
+
+  processDailyTick(): void {
+    this.processDailyEconomy()
   }
 
   /**
@@ -433,7 +447,7 @@ export class EconomySystem {
   }
 
   private getEventMult(
-    target: import('shared/game-types').EventModifierTarget
+    target: import('shared/types').EventModifierTarget
   ): number {
     return this.eventSystem.getActiveMultiplier(target) ?? 1
   }

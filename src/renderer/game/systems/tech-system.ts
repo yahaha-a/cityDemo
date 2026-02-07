@@ -1,25 +1,36 @@
-import type { TileType, TechState } from 'shared/game-types'
+import type { TileType, TechState } from 'shared/types'
 import type { GameStateManager } from '../engine/game-state'
-import { TECH_TREE } from '../constants'
+import type { IGameSystem, SystemRegistry } from '../engine/system-registry'
+import { TECH_TREE } from '../config'
 import type { PolicySystem } from './policy-system'
 import type { SynergySystem } from './synergy-system'
 
 /**
  * 科技树系统 - 研究点生成和科技解锁
  */
-export class TechSystem {
+export class TechSystem implements IGameSystem {
+  readonly id = 'tech'
   private stateManager: GameStateManager
-  private policySystem: PolicySystem
-  private synergySystem: SynergySystem
+  private policySystem!: PolicySystem
+  private synergySystem!: SynergySystem
 
   constructor(
     stateManager: GameStateManager,
-    policySystem: PolicySystem,
-    synergySystem: SynergySystem
+    policySystem?: PolicySystem,
+    synergySystem?: SynergySystem
   ) {
     this.stateManager = stateManager
-    this.policySystem = policySystem
-    this.synergySystem = synergySystem
+    if (policySystem) this.policySystem = policySystem
+    if (synergySystem) this.synergySystem = synergySystem
+  }
+
+  init(registry: SystemRegistry): void {
+    this.policySystem = registry.get<PolicySystem>('policy')
+    this.synergySystem = registry.get<SynergySystem>('synergy')
+  }
+
+  processDailyTick(): void {
+    this.processDailyTech()
   }
 
   /** 每日科技处理 */

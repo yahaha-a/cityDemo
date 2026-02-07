@@ -1,19 +1,25 @@
-import type { PolicyEffect } from 'shared/game-types'
+import type { PolicyEffect } from 'shared/types'
 import type { GameStateManager } from '../engine/game-state'
+import type { IGameSystem } from '../engine/system-registry'
 import {
   POLICY_TEMPLATES,
   MAX_ACTIVE_POLICIES,
   POLICY_DEFAULT_COOLDOWN,
-} from '../constants'
+} from '../config'
 
 /**
  * 政策系统 - 可开关的城市政策
  */
-export class PolicySystem {
+export class PolicySystem implements IGameSystem {
+  readonly id = 'policy'
   private stateManager: GameStateManager
 
   constructor(stateManager: GameStateManager) {
     this.stateManager = stateManager
+  }
+
+  processDailyTick(): void {
+    this.processDailyPolicies()
   }
 
   /** 每日递减冷却计时 */

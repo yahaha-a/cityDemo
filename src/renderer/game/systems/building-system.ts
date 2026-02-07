@@ -5,7 +5,7 @@ import {
   toolToTileType,
   isFacilityType,
   isCoreBuilding,
-} from 'shared/game-types'
+} from 'shared/types'
 import {
   BUILDING_COSTS,
   DEMOLISH_REFUND_RATIO,
@@ -13,29 +13,39 @@ import {
   MAX_BUILDING_LEVEL,
   UPGRADE_COST_MULTIPLIER,
   UPGRADE_MIN_EFFICIENCY,
-} from '../constants'
-import { getFacilityTemplate } from '../constants'
+} from '../config'
+import { getFacilityTemplate } from '../config'
 import type { GameStateManager } from '../engine/game-state'
+import type { IGameSystem, SystemRegistry } from '../engine/system-registry'
 import type { RoadSystem } from './road-system'
 import type { FacilitySystem } from './facility-system'
+import type { MapSystem } from './map-system'
 import { isInBounds } from '../input/coordinate-utils'
 
 /**
  * 建筑放置系统
  */
-export class BuildingSystem {
+export class BuildingSystem implements IGameSystem {
+  readonly id = 'building'
   private stateManager: GameStateManager
-  private roadSystem: RoadSystem
-  private facilitySystem: FacilitySystem
+  private roadSystem!: RoadSystem
+  private facilitySystem!: FacilitySystem
+  private mapSystem!: MapSystem
 
   constructor(
     stateManager: GameStateManager,
-    roadSystem: RoadSystem,
-    facilitySystem: FacilitySystem
+    roadSystem?: RoadSystem,
+    facilitySystem?: FacilitySystem
   ) {
     this.stateManager = stateManager
-    this.roadSystem = roadSystem
-    this.facilitySystem = facilitySystem
+    if (roadSystem) this.roadSystem = roadSystem
+    if (facilitySystem) this.facilitySystem = facilitySystem
+  }
+
+  init(registry: SystemRegistry): void {
+    this.roadSystem = registry.get<RoadSystem>('road')
+    this.facilitySystem = registry.get<FacilitySystem>('facility')
+    this.mapSystem = registry.get<MapSystem>('map')
   }
 
   /**
@@ -81,6 +91,7 @@ export class BuildingSystem {
 
     this.stateManager.setTileAt(x, y, tileType, 1)
     this.roadSystem.updateLocalConnections(x, y)
+    this.mapSystem.invalidateMapStats()
 
     return true
   }
@@ -105,6 +116,7 @@ export class BuildingSystem {
 
     this.stateManager.setTileAt(x, y, tileType, 1)
     this.roadSystem.updateLocalConnections(x, y)
+    this.mapSystem.invalidateMapStats()
 
     return true
   }
@@ -147,6 +159,7 @@ export class BuildingSystem {
 
     this.stateManager.setTileAt(x, y, TileType.Empty, 0)
     this.roadSystem.updateLocalConnections(x, y)
+    this.mapSystem.invalidateMapStats()
 
     return true
   }
@@ -185,13 +198,14 @@ export class BuildingSystem {
     if (!this.stateManager.spendMoney(upgradeCost)) return false
 
     this.stateManager.upgradeTileLevel(x, y)
+    this.mapSystem.invalidateMapStats()
     return true
   }
 
   /** 获取建造成本（考虑设施和地形） */
   getBuildCost(
     tileType: TileType,
-    terrain: import('shared/game-types').TerrainType
+    terrain: import('shared/types').TerrainType
   ): number | null {
     if (isFacilityType(tileType)) {
       const template = getFacilityTemplate(tileType)

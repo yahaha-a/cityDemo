@@ -1,4 +1,4 @@
-import { TileType, type CrisisTemplate } from 'shared/game-types'
+import { TileType, type CrisisTemplate } from 'shared/types'
 
 export const CRISIS_BASE_COOLDOWN = 40
 export const CRISIS_COOLDOWN_VARIANCE = 15

@@ -1,4 +1,3 @@
-import { useEngine } from '../../context/game-engine-context'
 import {
   useEconomy,
   useMoney,
@@ -7,11 +6,12 @@ import {
   useTechState,
   usePolicies,
   useSpecialization,
+  useMapStats,
 } from '../../hooks/use-game-selector'
 import { MILESTONES } from '../../config/milestones'
 import { TECH_TREE } from '../../config/tech'
 import { TILE_LABELS } from '../../config/ui'
-import { TileType } from 'shared/game-types'
+import { TileType } from 'shared/types'
 import { GameButton } from '../ui/game-button'
 import { GamePanelDivider } from '../ui/game-panel'
 import { ProgressBar } from '../ui/progress-bar'
@@ -52,7 +52,6 @@ const BUILDING_TYPES = [
 ] as const
 
 export function MenuStatsView({ onBack }: MenuStatsViewProps) {
-  const engine = useEngine()
   const money = useMoney()
   const economy = useEconomy()
   const time = useTimeState()
@@ -60,9 +59,11 @@ export function MenuStatsView({ onBack }: MenuStatsViewProps) {
   const tech = useTechState()
   const policies = usePolicies()
   const specialization = useSpecialization()
+  const mapStats = useMapStats()
 
-  const counts = engine.mapSystem.countTiles()
-  const usage = engine.mapSystem.getUsagePercent()
+  const counts =
+    mapStats?.tileCounts ?? ({} as Partial<Record<TileType, number>>)
+  const usage = mapStats?.usagePercent ?? 0
 
   const { satisfaction, population, populationCapacity, lastDayRevenue } =
     economy

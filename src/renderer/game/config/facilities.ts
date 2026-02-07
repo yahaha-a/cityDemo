@@ -1,4 +1,4 @@
-import { TileType, type FacilityTemplate } from 'shared/game-types'
+import { TileType, type FacilityTemplate } from 'shared/types'
 
 export const FACILITY_TEMPLATES: FacilityTemplate[] = [
   {

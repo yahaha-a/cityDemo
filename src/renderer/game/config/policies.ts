@@ -1,4 +1,4 @@
-import type { PolicyTemplate } from 'shared/game-types'
+import type { PolicyTemplate } from 'shared/types'
 
 export const MAX_ACTIVE_POLICIES = 5
 export const POLICY_DEFAULT_COOLDOWN = 5

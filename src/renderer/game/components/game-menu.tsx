@@ -34,7 +34,7 @@ export function GameMenu({
   isOpen,
   onClose,
 }: GameMenuProps) {
-  const { saveSystem } = useEngine()
+  const engine = useEngine()
   const [view, setView] = useState<MenuView>('main')
   const [slots, setSlots] = useState<SaveSlot[]>([])
   const [newSaveName, setNewSaveName] = useState('')
@@ -55,10 +55,10 @@ export function GameMenu({
   useEffect(() => {
     if (isOpen) {
       setView('main')
-      setSlots(saveSystem.getSaveSlots())
+      setSlots(engine.getSaveSlots())
       setConfirmAction(null)
     }
-  }, [isOpen, saveSystem])
+  }, [isOpen, engine])
 
   // Escape 键：确认弹窗打开时优先关闭弹窗
   useEffect(() => {
@@ -84,8 +84,8 @@ export function GameMenu({
   }
 
   const refreshSlots = useCallback(() => {
-    setSlots(saveSystem.getSaveSlots())
-  }, [saveSystem])
+    setSlots(engine.getSaveSlots())
+  }, [engine])
 
   const closeMenu = () => {
     onClose()
@@ -106,7 +106,7 @@ export function GameMenu({
 
   const handleCreateSave = () => {
     const name = newSaveName.trim() || `存档 ${new Date().toLocaleString()}`
-    const success = saveSystem.createNewSave(name)
+    const success = engine.createNewSave(name)
     if (success) {
       showMessage('保存成功')
       setNewSaveName('')
@@ -117,13 +117,13 @@ export function GameMenu({
   }
 
   const handleOverwriteSave = (slotId: string, name: string) => {
-    const success = saveSystem.saveToSlot(slotId, name)
+    const success = engine.saveToSlot(slotId, name)
     showMessage(success ? '保存成功' : '保存失败')
     refreshSlots()
   }
 
   const handleLoad = (slotId: string) => {
-    const success = saveSystem.loadFromSlot(slotId)
+    const success = engine.loadFromSlot(slotId)
     if (success) {
       showMessage('加载成功')
       closeMenu()
@@ -133,7 +133,7 @@ export function GameMenu({
   }
 
   const handleDelete = (slotId: string) => {
-    const success = saveSystem.deleteSlot(slotId)
+    const success = engine.deleteSlot(slotId)
     showMessage(success ? '已删除' : '删除失败')
     refreshSlots()
   }
@@ -252,7 +252,7 @@ export function GameMenu({
                       />
                       <GameButton
                         className="text-sm"
-                        disabled={slots.length >= saveSystem.getMaxSlots()}
+                        disabled={slots.length >= engine.getMaxSlots()}
                         intent="primary"
                         onClick={handleCreateSave}
                         variant="action"
@@ -261,7 +261,7 @@ export function GameMenu({
                       </GameButton>
                     </div>
                     <div className="text-xs text-[var(--game-text-muted)] mt-1">
-                      已用 {slots.length} / {saveSystem.getMaxSlots()} 个存档位
+                      已用 {slots.length} / {engine.getMaxSlots()} 个存档位
                     </div>
                   </div>
 

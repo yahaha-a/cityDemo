@@ -3,8 +3,9 @@ import type {
   ChallengeState,
   CrisisTemplate,
   ActiveCrisis,
-} from 'shared/game-types'
+} from 'shared/types'
 import type { GameStateManager } from '../engine/game-state'
+import type { IGameSystem, SystemRegistry } from '../engine/system-registry'
 import {
   CRISIS_TEMPLATES,
   CRISIS_BASE_COOLDOWN,
@@ -17,20 +18,29 @@ import {
   CHALLENGE_WIN_DAYS,
   MAP_WIDTH,
   MAP_HEIGHT,
-} from '../constants'
+} from '../config'
 import type { PolicySystem } from './policy-system'
 
 /**
  * 危机挑战系统 - 交互式危机事件和挑战模式
  */
-export class CrisisSystem {
+export class CrisisSystem implements IGameSystem {
+  readonly id = 'crisis'
   private stateManager: GameStateManager
-  private policySystem: PolicySystem
+  private policySystem!: PolicySystem
   private crisisCooldown = CRISIS_BASE_COOLDOWN
 
-  constructor(stateManager: GameStateManager, policySystem: PolicySystem) {
+  constructor(stateManager: GameStateManager, policySystem?: PolicySystem) {
     this.stateManager = stateManager
-    this.policySystem = policySystem
+    if (policySystem) this.policySystem = policySystem
+  }
+
+  init(registry: SystemRegistry): void {
+    this.policySystem = registry.get<PolicySystem>('policy')
+  }
+
+  processDailyTick(): void {
+    this.processDailyCrisis()
   }
 
   /** 每日危机处理 */
@@ -268,7 +278,7 @@ export class CrisisSystem {
 
   private updateChallengeConditions(
     challenge: ChallengeState,
-    state: import('shared/game-types').GameState
+    state: import('shared/types').GameState
   ): void {
     const { economy, time } = state
 
@@ -321,7 +331,7 @@ export class CrisisSystem {
     }
   }
 
-  private calculateScore(state: import('shared/game-types').GameState): number {
+  private calculateScore(state: import('shared/types').GameState): number {
     const { economy, time, money } = state
     return Math.floor(
       economy.population * 10 +

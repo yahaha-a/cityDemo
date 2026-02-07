@@ -1,7 +1,7 @@
 import { memo, useMemo, useState } from 'react'
-import { ToolType, TileType } from 'shared/game-types'
-import type { DemandIndicators } from 'shared/game-types'
-import { TOOL_LABELS, BUILDING_COSTS, FACILITY_TEMPLATES } from '../constants'
+import { ToolType, TileType } from 'shared/types'
+import type { DemandIndicators } from 'shared/types'
+import { TOOL_LABELS, BUILDING_COSTS, FACILITY_TEMPLATES } from '../config'
 import {
   useCurrentTool,
   useMoney,

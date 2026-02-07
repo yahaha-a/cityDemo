@@ -1,4 +1,4 @@
-import { TileType, TerrainType } from 'shared/game-types'
+import { TileType, TerrainType } from 'shared/types'
 
 /** 悬停高亮色 */
 export const HOVER_COLOR = 'rgba(255, 255, 255, 0.3)'

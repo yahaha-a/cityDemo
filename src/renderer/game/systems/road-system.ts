@@ -1,16 +1,24 @@
-import { TileType } from 'shared/game-types'
+import { TileType } from 'shared/types'
 import type { GameStateManager } from '../engine/game-state'
-import { MAP_WIDTH, MAP_HEIGHT } from '../constants'
+import type { IGameSystem, SystemRegistry } from '../engine/system-registry'
+import { MAP_WIDTH, MAP_HEIGHT } from '../config'
+import type { MapSystem } from './map-system'
 
 /**
  * 道路连接系统
  * 检测建筑是否连接到道路网络
  */
-export class RoadSystem {
+export class RoadSystem implements IGameSystem {
+  readonly id = 'road'
   private stateManager: GameStateManager
+  private mapSystem: MapSystem | null = null
 
   constructor(stateManager: GameStateManager) {
     this.stateManager = stateManager
+  }
+
+  init(registry: SystemRegistry): void {
+    this.mapSystem = registry.get<MapSystem>('map')
   }
 
   /** 四方向邻居偏移 */
@@ -127,6 +135,7 @@ export class RoadSystem {
 
     if (updates.length > 0) {
       this.stateManager.updateConnections(updates)
+      this.mapSystem?.invalidateMapStats()
     }
   }
 

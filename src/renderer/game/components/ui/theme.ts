@@ -1,4 +1,4 @@
-import { DemandLevel } from 'shared/game-types'
+import { DemandLevel } from 'shared/types'
 
 /** 需求等级 -> 圆点背景色 */
 export const DEMAND_DOT_COLORS: Record<DemandLevel, string> = {

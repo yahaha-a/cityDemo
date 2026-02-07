@@ -1,24 +1,26 @@
-import type {
-  EventModifierTarget,
-  EventState,
-  GameEvent,
-} from 'shared/game-types'
+import type { EventModifierTarget, EventState, GameEvent } from 'shared/types'
 import type { GameStateManager } from '../engine/game-state'
+import type { IGameSystem } from '../engine/system-registry'
 import {
   EVENT_BASE_COOLDOWN,
   EVENT_COOLDOWN_VARIANCE,
   EVENT_HISTORY_SIZE,
   EVENT_TEMPLATES,
-} from '../constants'
+} from '../config'
 
 /**
  * 事件系统 - 随机事件触发和管理
  */
-export class EventSystem {
+export class EventSystem implements IGameSystem {
+  readonly id = 'event'
   private stateManager: GameStateManager
 
   constructor(stateManager: GameStateManager) {
     this.stateManager = stateManager
+  }
+
+  processDailyTick(): void {
+    this.processDailyEvents()
   }
 
   /** 每日事件处理 */
