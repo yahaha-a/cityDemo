@@ -1,17 +1,17 @@
 import { TimeSpeed } from 'shared/types'
 import type { GameStateManager } from './game-state'
 import type { SystemRegistry } from './system-registry'
-import type { IsometricRenderer } from '../renderer/isometric-renderer'
-import { BuildQuery } from '../services/build-query'
+import { BuildQuery, type HoverValidity } from '../services/build-query'
 import { DAY_DURATION_MS, TIME_SPEED_MULTIPLIERS } from '../config'
+
+export type { HoverValidity }
 
 /**
  * 游戏主循环 - requestAnimationFrame
  *
- * 每日处理顺序由 SystemRegistry.tickOrder 定义
+ * 仅负责时间推进和系统 tick，渲染由 R3F 自行管理
  */
 export class GameLoop {
-  private renderer: IsometricRenderer
   private stateManager: GameStateManager
   private registry: SystemRegistry
   private buildQuery = new BuildQuery()
@@ -19,15 +19,16 @@ export class GameLoop {
   private running = false
   private lastTimestamp = 0
   private frameCallbacks = new Set<(dayProgress: number) => void>()
+  private _hoverValidity: HoverValidity = 'none'
 
-  constructor(
-    renderer: IsometricRenderer,
-    stateManager: GameStateManager,
-    registry: SystemRegistry
-  ) {
-    this.renderer = renderer
+  constructor(stateManager: GameStateManager, registry: SystemRegistry) {
     this.stateManager = stateManager
     this.registry = registry
+  }
+
+  /** 当前悬停有效性（供 3D 场景读取） */
+  get hoverValidity(): HoverValidity {
+    return this._hoverValidity
   }
 
   /** 注册每帧回调（返回取消函数） */
@@ -73,8 +74,8 @@ export class GameLoop {
       cb(dayProgress)
     }
 
-    const hoverValidity = this.buildQuery.getHoverValidity(state)
-    this.renderer.render(state, hoverValidity)
+    // 更新悬停有效性
+    this._hoverValidity = this.buildQuery.getHoverValidity(state)
 
     this.animFrameId = requestAnimationFrame(this.tick)
   }
