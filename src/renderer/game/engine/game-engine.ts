@@ -2,7 +2,6 @@ import type { ToolType, TimeSpeed, TileType } from 'shared/types'
 import { GameStateManager, type StateKey } from './game-state'
 import { GameLoop } from './game-loop'
 import { SystemRegistry } from './system-registry'
-import { IsometricRenderer } from '../renderer/isometric-renderer'
 import { RoadSystem } from '../systems/road-system'
 import { MapSystem } from '../systems/map-system'
 import { EconomySystem } from '../systems/economy-system'
@@ -16,7 +15,6 @@ import { CrisisSystem } from '../systems/crisis-system'
 import { TechSystem } from '../systems/tech-system'
 import { SpecializationSystem } from '../systems/specialization-system'
 import { BuildingSystem } from '../systems/building-system'
-import { InputHandler } from '../input/input-handler'
 import type { GameEngineFacade } from '../context/engine-facade'
 
 /**
@@ -24,11 +22,9 @@ import type { GameEngineFacade } from '../context/engine-facade'
  * 实现 GameEngineFacade 接口供 React 组件使用
  */
 export class GameEngine implements GameEngineFacade {
-  private readonly stateManager: GameStateManager
+  readonly stateManager: GameStateManager
   private readonly registry: SystemRegistry
   gameLoop: GameLoop | null = null
-  private inputHandler: InputHandler | null = null
-  private renderer: IsometricRenderer | null = null
 
   // 内部系统引用（不通过 Facade 暴露）
   private readonly roadSystem: RoadSystem
@@ -95,6 +91,9 @@ export class GameEngine implements GameEngineFacade {
 
     // 初始化所有系统（解析跨系统依赖）
     registry.initAll()
+
+    // 创建 GameLoop（不再依赖 renderer）
+    this.gameLoop = new GameLoop(sm, registry)
   }
 
   // === Facade: 状态订阅 ===
@@ -177,27 +176,8 @@ export class GameEngine implements GameEngineFacade {
 
   // === 引擎生命周期方法（非 Facade 部分） ===
 
-  /** 绑定到 Canvas 并初始化渲染器和输入处理器 */
-  attachToCanvas(canvas: HTMLCanvasElement): void {
-    this.renderer = new IsometricRenderer(canvas)
-
-    this.gameLoop = new GameLoop(
-      this.renderer,
-      this.stateManager,
-      this.registry
-    )
-
-    this.inputHandler = new InputHandler(
-      canvas,
-      this.stateManager,
-      this.buildingSystem,
-      this.renderer
-    )
-  }
-
   /** 启动游戏循环 */
   start(): void {
-    this.inputHandler?.attach()
     this.gameLoop?.start()
     this.saveSystem.startAutoSave()
   }
@@ -205,22 +185,13 @@ export class GameEngine implements GameEngineFacade {
   /** 停止游戏循环 */
   stop(): void {
     this.gameLoop?.stop()
-    this.inputHandler?.detach()
     this.saveSystem.stopAutoSave()
-  }
-
-  /** 调整渲染器和输入处理器尺寸 */
-  resize(width: number, height: number): void {
-    this.renderer?.resize(width, height)
-    this.inputHandler?.invalidateRectCache()
   }
 
   /** 释放所有资源 */
   dispose(): void {
     this.stop()
     this.registry.disposeAll()
-    this.renderer = null
     this.gameLoop = null
-    this.inputHandler = null
   }
 }
