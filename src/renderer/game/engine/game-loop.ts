@@ -1,59 +1,41 @@
-import { TimeSpeed } from 'shared/game-types'
+import { TimeSpeed } from 'shared/types'
 import type { GameStateManager } from './game-state'
+import type { SystemRegistry } from './system-registry'
 import type { IsometricRenderer } from '../renderer/isometric-renderer'
-import type { EconomySystem } from '../systems/economy-system'
-import type { EventSystem } from '../systems/event-system'
-import type { MilestoneSystem } from '../systems/milestone-system'
-import type { SynergySystem } from '../systems/synergy-system'
-import type { FacilitySystem } from '../systems/facility-system'
-import type { PolicySystem } from '../systems/policy-system'
-import type { CrisisSystem } from '../systems/crisis-system'
-import type { TechSystem } from '../systems/tech-system'
-import { DAY_DURATION_MS, TIME_SPEED_MULTIPLIERS } from '../constants'
+import { BuildQuery } from '../services/build-query'
+import { DAY_DURATION_MS, TIME_SPEED_MULTIPLIERS } from '../config'
 
 /**
  * 游戏主循环 - requestAnimationFrame
  *
- * 每日处理顺序：
- * Events → Policies → Facilities → Synergy → Tech → Crisis → Economy → Milestones
+ * 每日处理顺序由 SystemRegistry.tickOrder 定义
  */
 export class GameLoop {
   private renderer: IsometricRenderer
   private stateManager: GameStateManager
-  private economySystem: EconomySystem
-  private eventSystem: EventSystem
-  private milestoneSystem: MilestoneSystem
-  private synergySystem: SynergySystem
-  private facilitySystem: FacilitySystem
-  private policySystem: PolicySystem
-  private crisisSystem: CrisisSystem
-  private techSystem: TechSystem
+  private registry: SystemRegistry
+  private buildQuery = new BuildQuery()
   private animFrameId = 0
   private running = false
   private lastTimestamp = 0
+  private frameCallbacks = new Set<(dayProgress: number) => void>()
 
   constructor(
     renderer: IsometricRenderer,
     stateManager: GameStateManager,
-    economySystem: EconomySystem,
-    eventSystem: EventSystem,
-    milestoneSystem: MilestoneSystem,
-    synergySystem: SynergySystem,
-    facilitySystem: FacilitySystem,
-    policySystem: PolicySystem,
-    crisisSystem: CrisisSystem,
-    techSystem: TechSystem
+    registry: SystemRegistry
   ) {
     this.renderer = renderer
     this.stateManager = stateManager
-    this.economySystem = economySystem
-    this.eventSystem = eventSystem
-    this.milestoneSystem = milestoneSystem
-    this.synergySystem = synergySystem
-    this.facilitySystem = facilitySystem
-    this.policySystem = policySystem
-    this.crisisSystem = crisisSystem
-    this.techSystem = techSystem
+    this.registry = registry
+  }
+
+  /** 注册每帧回调（返回取消函数） */
+  onFrame(cb: (dayProgress: number) => void): () => void {
+    this.frameCallbacks.add(cb)
+    return () => {
+      this.frameCallbacks.delete(cb)
+    }
   }
 
   start(): void {
@@ -81,8 +63,18 @@ export class GameLoop {
     // 更新时间系统
     this.updateTime(deltaMs)
 
+    // 计算日进度并通知帧回调
     const state = this.stateManager.getState()
-    this.renderer.render(state)
+    const dayProgress = Math.min(
+      state.time.tickAccumulator / DAY_DURATION_MS,
+      1
+    )
+    for (const cb of this.frameCallbacks) {
+      cb(dayProgress)
+    }
+
+    const hoverValidity = this.buildQuery.getHoverValidity(state)
+    this.renderer.render(state, hoverValidity)
 
     this.animFrameId = requestAnimationFrame(this.tick)
   }
@@ -109,16 +101,7 @@ export class GameLoop {
       // 每日处理包在 batch 中，一天只触发一次 React 重渲染
       this.stateManager.batch(() => {
         this.stateManager.advanceDay()
-
-        // 每日顺序: 事件 → 政策 → 设施 → 协同 → 科技 → 危机 → 经济 → 里程碑
-        this.eventSystem.processDailyEvents()
-        this.policySystem.processDailyPolicies()
-        this.facilitySystem.processDailyFacilities()
-        this.synergySystem.processDailySynergy()
-        this.techSystem.processDailyTech()
-        this.crisisSystem.processDailyCrisis()
-        this.economySystem.processDailyEconomy()
-        this.milestoneSystem.processDailyMilestones()
+        this.registry.tickAll()
       })
       daysAdvanced++
 

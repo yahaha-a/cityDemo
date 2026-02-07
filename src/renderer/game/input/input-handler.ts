@@ -2,11 +2,7 @@ import type { GameStateManager } from '../engine/game-state'
 import type { BuildingSystem } from '../systems/building-system'
 import type { IsometricRenderer } from '../renderer/isometric-renderer'
 import { screenToGrid, isInBounds } from './coordinate-utils'
-import {
-  CAMERA_ZOOM_SPEED,
-  CAMERA_MIN_ZOOM,
-  CAMERA_MAX_ZOOM,
-} from '../constants'
+import { CAMERA_ZOOM_SPEED, CAMERA_MIN_ZOOM, CAMERA_MAX_ZOOM } from '../config'
 
 /**
  * 输入处理器 - 处理鼠标和键盘事件

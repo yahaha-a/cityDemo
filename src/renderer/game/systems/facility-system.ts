@@ -3,18 +3,24 @@ import {
   isFacilityType,
   type FacilityCoverageState,
   type FacilityCoverageInfo,
-} from 'shared/game-types'
+} from 'shared/types'
 import type { GameStateManager } from '../engine/game-state'
-import { MAP_WIDTH, MAP_HEIGHT, getFacilityTemplate } from '../constants'
+import type { IGameSystem } from '../engine/system-registry'
+import { MAP_WIDTH, MAP_HEIGHT, getFacilityTemplate } from '../config'
 
 /**
  * 区域设施系统 - 计算设施覆盖范围和区域效果
  */
-export class FacilitySystem {
+export class FacilitySystem implements IGameSystem {
+  readonly id = 'facility'
   private stateManager: GameStateManager
 
   constructor(stateManager: GameStateManager) {
     this.stateManager = stateManager
+  }
+
+  processDailyTick(): void {
+    this.processDailyFacilities()
   }
 
   /** 检查设施是否已解锁 */

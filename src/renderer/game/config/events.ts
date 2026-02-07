@@ -1,4 +1,4 @@
-import type { EventModifierTarget } from 'shared/game-types'
+import type { EventModifierTarget } from 'shared/types'
 
 export const EVENT_BASE_COOLDOWN = 30
 export const EVENT_COOLDOWN_VARIANCE = 10

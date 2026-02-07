@@ -1,20 +1,22 @@
-import {
-  TileType,
-  type SynergyState,
-  type TileSynergyInfo,
-} from 'shared/game-types'
+import { TileType, type SynergyState, type TileSynergyInfo } from 'shared/types'
 import type { GameStateManager } from '../engine/game-state'
-import { MAP_WIDTH, MAP_HEIGHT, SYNERGY_RULES } from '../constants'
+import type { IGameSystem } from '../engine/system-registry'
+import { MAP_WIDTH, MAP_HEIGHT, SYNERGY_RULES } from '../config'
 
 /**
  * 邻接协同系统 - 计算建筑间的正面/负面邻接效应
  */
-export class SynergySystem {
+export class SynergySystem implements IGameSystem {
+  readonly id = 'synergy'
   private stateManager: GameStateManager
   private radiusOverrides: Record<string, number> = {}
 
   constructor(stateManager: GameStateManager) {
     this.stateManager = stateManager
+  }
+
+  processDailyTick(): void {
+    this.processDailySynergy()
   }
 
   /** 修改协同规则半径（用于科技效果） */

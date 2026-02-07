@@ -1,4 +1,4 @@
-import type { CrisisEffect } from 'shared/game-types'
+import type { CrisisEffect } from 'shared/types'
 import { useEngine } from '../context/game-engine-context'
 import {
   useChallenge,
@@ -26,7 +26,7 @@ export function CrisisDialog() {
   if (!crisis) return null
 
   const handleOption = (optionId: string) => {
-    engine.crisisSystem.resolveCrisis(optionId)
+    engine.resolveCrisis(optionId)
   }
 
   return (
@@ -69,7 +69,7 @@ export function CrisisDialog() {
             const canAfford = money >= option.cost
             const hasFacility =
               !option.requirements?.facility ||
-              engine.crisisSystem.hasFacility(option.requirements.facility)
+              engine.hasFacility(option.requirements.facility)
             const hasTech =
               !option.requirements?.tech ||
               tech.researched.includes(option.requirements.tech)

@@ -32,11 +32,11 @@ export function MenuSettingsView({ onBack }: MenuSettingsViewProps) {
 
   useEffect(() => {
     if (settings.autoSave) {
-      engine.saveSystem.startAutoSave()
+      engine.startAutoSave()
     } else {
-      engine.saveSystem.stopAutoSave()
+      engine.stopAutoSave()
     }
-  }, [settings.autoSave, engine.saveSystem])
+  }, [settings.autoSave, engine])
 
   const toggleAutoSave = () => {
     const next = { ...settings, autoSave: !settings.autoSave }

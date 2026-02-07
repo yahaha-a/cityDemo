@@ -1,5 +1,5 @@
-import { TILE_WIDTH, TILE_HEIGHT, MAP_WIDTH, MAP_HEIGHT } from '../constants'
-import type { Camera } from 'shared/game-types'
+import { TILE_WIDTH, TILE_HEIGHT, MAP_WIDTH, MAP_HEIGHT } from '../config'
+import type { Camera } from 'shared/types'
 
 /**
  * 网格坐标 -> 屏幕坐标 (考虑相机)

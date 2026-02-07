@@ -1,4 +1,4 @@
-import type { SpecializationTemplate } from 'shared/game-types'
+import type { SpecializationTemplate } from 'shared/types'
 
 export const SPECIALIZATION_TEMPLATES: SpecializationTemplate[] = [
   {

@@ -1,5 +1,5 @@
 import { memo } from 'react'
-import { POLICY_TEMPLATES, TECH_TREE } from '../constants'
+import { POLICY_TEMPLATES, TECH_TREE } from '../config'
 import { useEngine } from '../context/game-engine-context'
 import { usePolicies, useTechState } from '../hooks/use-game-selector'
 import { GamePanel, GamePanelHeader, GamePanelDivider } from './ui/game-panel'
@@ -18,7 +18,7 @@ export const StatusPanel = memo(function StatusPanel() {
   const currentNode = tech.currentResearch
     ? TECH_TREE.find(t => t.id === tech.currentResearch)
     : null
-  const progress = engine.techSystem.getResearchProgress()
+  const progress = engine.getResearchProgress()
 
   return (
     <GamePanel className="h-full rounded-none overflow-y-auto" size="sm">

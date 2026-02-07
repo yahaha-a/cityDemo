@@ -18,13 +18,13 @@ import {
   ToolType,
   TimeSpeed,
   DemandLevel,
-} from 'shared/game-types'
+} from 'shared/types'
 import {
   MAP_WIDTH,
   MAP_HEIGHT,
   INITIAL_MONEY,
   EVENT_BASE_COOLDOWN,
-} from '../constants'
+} from '../config'
 import { generateTerrainNoise } from '../utils/seeded-random'
 
 function terrainFromNoise(value: number): TerrainType {
@@ -196,5 +196,6 @@ export function createInitialState(): GameState {
     challenge: createInitialChallenge(),
     tech: createInitialTech(),
     specialization: createInitialSpecialization(),
+    _derived: { mapStats: null },
   }
 }

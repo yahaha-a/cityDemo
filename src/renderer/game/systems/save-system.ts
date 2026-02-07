@@ -1,7 +1,8 @@
-import type { GameState, SaveData } from 'shared/game-types'
-import { DemandLevel, TerrainType } from 'shared/game-types'
+import type { GameState, SaveData } from 'shared/types'
+import { DemandLevel, TerrainType } from 'shared/types'
 import type { GameStateManager } from '../engine/game-state'
-import { EVENT_BASE_COOLDOWN, MAP_WIDTH, MAP_HEIGHT } from '../constants'
+import type { IGameSystem } from '../engine/system-registry'
+import { EVENT_BASE_COOLDOWN, MAP_WIDTH, MAP_HEIGHT } from '../config'
 
 const SAVE_VERSION = '1.3.0'
 const STORAGE_KEY = 'city-demo-saves'
@@ -20,7 +21,8 @@ export interface SaveSlot {
 /**
  * 存档系统 - 使用 localStorage 存储
  */
-export class SaveSystem {
+export class SaveSystem implements IGameSystem {
+  readonly id = 'save'
   private stateManager: GameStateManager
   private autoSaveTimer: ReturnType<typeof setInterval> | null = null
 
@@ -33,7 +35,7 @@ export class SaveSystem {
    */
   private createSaveData(name: string): SaveData {
     const state = this.stateManager.getState()
-    const { hoveredTile: _hoveredTile, ...gameState } = state
+    const { hoveredTile: _hoveredTile, _derived, ...gameState } = state
 
     return {
       version: SAVE_VERSION,
@@ -297,6 +299,7 @@ export class SaveSystem {
     const fullState: GameState = {
       ...saveData.gameState,
       hoveredTile: null,
+      _derived: { mapStats: null },
     }
     this.stateManager.loadState(fullState)
   }

@@ -6,8 +6,8 @@ import {
   BUILDING_COSTS,
   UPGRADE_COST_MULTIPLIER,
   MAX_BUILDING_LEVEL,
-} from '../constants'
-import { TileType, TerrainType } from 'shared/game-types'
+} from '../config'
+import { TileType, TerrainType } from 'shared/types'
 import { useHoveredTile, useMap, useEconomy } from '../hooks/use-game-selector'
 
 function terrainEffectText(terrain: TerrainType): string | null {

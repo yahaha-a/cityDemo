@@ -1,5 +1,5 @@
 import { memo } from 'react'
-import { TECH_TREE } from '../constants'
+import { TECH_TREE } from '../config'
 import { useEngine } from '../context/game-engine-context'
 import { useTechState } from '../hooks/use-game-selector'
 import { GamePanel, GamePanelHeader } from './ui/game-panel'
@@ -19,7 +19,7 @@ export const TechPanel = memo(function TechPanel({ dailyRP }: TechPanelProps) {
   const currentNode = tech.currentResearch
     ? TECH_TREE.find(t => t.id === tech.currentResearch)
     : null
-  const progress = engine.techSystem.getResearchProgress()
+  const progress = engine.getResearchProgress()
 
   return (
     <GamePanel
@@ -53,7 +53,7 @@ export const TechPanel = memo(function TechPanel({ dailyRP }: TechPanelProps) {
           />
           <button
             className="text-[10px] text-[var(--game-text-muted)] hover:text-[var(--game-red)] mt-1 cursor-pointer"
-            onClick={() => engine.techSystem.cancelResearch()}
+            onClick={() => engine.cancelResearch()}
             type="button"
           >
             取消研究
@@ -73,7 +73,7 @@ export const TechPanel = memo(function TechPanel({ dailyRP }: TechPanelProps) {
               {nodes.map(node => {
                 const isResearched = tech.researched.includes(node.id)
                 const isCurrent = tech.currentResearch === node.id
-                const canResearch = engine.techSystem.canResearch(node.id)
+                const canResearch = engine.canResearch(node.id)
                 const prereqsMet = node.prerequisites.every(p =>
                   tech.researched.includes(p)
                 )
@@ -92,7 +92,7 @@ export const TechPanel = memo(function TechPanel({ dailyRP }: TechPanelProps) {
                     )}
                     disabled={isResearched || isCurrent || !canResearch}
                     key={node.id}
-                    onClick={() => engine.techSystem.setResearch(node.id)}
+                    onClick={() => engine.setResearch(node.id)}
                     type="button"
                   >
                     <div className="flex justify-between items-center">

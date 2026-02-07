@@ -1,12 +1,11 @@
-import type { GameState, Tile, Camera } from 'shared/game-types'
+import type { GameState, Tile, Camera } from 'shared/types'
 import {
   TileType,
   ToolType,
-  toolToTileType,
   isFacilityType,
   isCoreBuilding,
   isBuilding,
-} from 'shared/game-types'
+} from 'shared/types'
 import {
   TILE_WIDTH,
   TILE_HEIGHT,
@@ -15,19 +14,14 @@ import {
   BUILDING_HEIGHTS,
   HOVER_COLOR,
   INVALID_COLOR,
-  BUILDING_COSTS,
-  TERRAIN_BUILD_COST_MULTIPLIER,
   LEVEL_HEIGHT_MULTIPLIER,
-  UPGRADE_COST_MULTIPLIER,
-  MAX_BUILDING_LEVEL,
-  UPGRADE_MIN_EFFICIENCY,
-  getFacilityTemplate,
-} from '../constants'
+} from '../config'
 import {
   gridToScreen,
   calculateOrigin,
   isInBounds,
 } from '../input/coordinate-utils'
+import type { HoverValidity } from '../services/build-query'
 
 /**
  * 等距渲染引擎
@@ -63,10 +57,10 @@ export class IsometricRenderer {
     this.updateOrigin()
   }
 
-  render(state: GameState): void {
+  render(state: GameState, hoverValidity?: HoverValidity): void {
     this.clear()
     this.renderMap(state)
-    this.renderHover(state)
+    this.renderHover(state, hoverValidity ?? 'none')
   }
 
   private clear(): void {
@@ -359,8 +353,8 @@ export class IsometricRenderer {
     return result
   }
 
-  private renderHover(state: GameState): void {
-    const { hoveredTile, currentTool, money, camera } = state
+  private renderHover(state: GameState, hoverValidity: HoverValidity): void {
+    const { hoveredTile, currentTool, camera } = state
     if (!hoveredTile) return
     if (!isInBounds(hoveredTile.x, hoveredTile.y)) return
 
@@ -371,85 +365,14 @@ export class IsometricRenderer {
       this.originY,
       camera
     )
-    const tile = state.map.tiles[hoveredTile.y][hoveredTile.x]
-    const currentTileType = tile.type
 
-    let highlightColor = HOVER_COLOR
-
-    // 检查是否可以放置
-    if (currentTool !== ToolType.Select) {
-      if (currentTool === ToolType.Upgrade) {
-        const canUpgrade = this.canUpgradeTile(tile, state)
-        if (!canUpgrade) highlightColor = INVALID_COLOR
-      } else {
-        const targetType = toolToTileType[currentTool]
-        if (targetType) {
-          // 获取建造成本
-          if (isFacilityType(targetType)) {
-            const template = getFacilityTemplate(targetType)
-            if (!template) {
-              highlightColor = INVALID_COLOR
-            } else {
-              const isUnlocked =
-                !template.unlockTech ||
-                state.tech.researched.includes(template.unlockTech)
-              const terrainMult = TERRAIN_BUILD_COST_MULTIPLIER[tile.terrain]
-              const cost = Number.isFinite(terrainMult)
-                ? Math.ceil(template.buildCost * terrainMult)
-                : null
-              const canPlace =
-                currentTileType === TileType.Empty &&
-                cost !== null &&
-                money >= cost &&
-                isUnlocked
-              if (!canPlace) highlightColor = INVALID_COLOR
-            }
-          } else {
-            const baseCost =
-              BUILDING_COSTS[targetType as keyof typeof BUILDING_COSTS]
-            if (baseCost !== undefined) {
-              const terrainMult = TERRAIN_BUILD_COST_MULTIPLIER[tile.terrain]
-              const canPlace =
-                currentTileType === TileType.Empty &&
-                Number.isFinite(terrainMult) &&
-                money >= Math.ceil(baseCost * terrainMult)
-              if (!canPlace) highlightColor = INVALID_COLOR
-            }
-          }
-        } else if (currentTool === ToolType.Demolish) {
-          if (currentTileType === TileType.Empty) {
-            highlightColor = INVALID_COLOR
-          }
-        }
-      }
-    }
+    // 选择工具和无效状态使用不同颜色
+    const highlightColor =
+      currentTool === ToolType.Select || hoverValidity === 'valid'
+        ? HOVER_COLOR
+        : INVALID_COLOR
 
     this.drawHighlight(screen.x, screen.y, highlightColor, camera.zoom)
-  }
-
-  private canUpgradeTile(tile: Tile, state: GameState): boolean {
-    // 只有核心建筑可升级
-    if (!isCoreBuilding(tile.type)) return false
-    if (tile.level >= MAX_BUILDING_LEVEL) return false
-    if (tile.level === 2 && !state.milestones.upgradeLv3Unlocked) return false
-    if (!tile.connected) return false
-
-    const efficiency =
-      tile.type === TileType.Residential
-        ? state.economy.efficiencyByType.residential
-        : tile.type === TileType.Commercial
-          ? state.economy.efficiencyByType.commercial
-          : state.economy.efficiencyByType.industrial
-    if (efficiency < UPGRADE_MIN_EFFICIENCY) return false
-
-    const baseCost = BUILDING_COSTS[tile.type as keyof typeof BUILDING_COSTS]
-    if (baseCost === undefined) return false
-    const terrainMult = TERRAIN_BUILD_COST_MULTIPLIER[tile.terrain]
-    const mult = Number.isFinite(terrainMult) ? terrainMult : 1
-    const cost = Math.ceil(
-      baseCost * mult * UPGRADE_COST_MULTIPLIER[tile.level]
-    )
-    return state.money >= cost
   }
 
   private drawHighlight(

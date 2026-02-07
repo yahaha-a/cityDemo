@@ -1,4 +1,4 @@
-import { TileType, TerrainType, type BuildingCosts } from 'shared/game-types'
+import { TileType, TerrainType, type BuildingCosts } from 'shared/types'
 
 /** 建筑成本 */
 export const BUILDING_COSTS: BuildingCosts = {

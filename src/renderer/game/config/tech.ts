@@ -1,4 +1,4 @@
-import type { TechNode } from 'shared/game-types'
+import type { TechNode } from 'shared/types'
 
 export const TECH_TREE: TechNode[] = [
   // Tier 1

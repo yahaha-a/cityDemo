@@ -1,9 +1,12 @@
 import { useState } from 'react'
-import { TILE_LABELS, BUILDING_COSTS } from '../constants'
-import { TileType, DemandLevel } from 'shared/game-types'
-import { useEngine } from '../context/game-engine-context'
-import { useMoney, useEconomy, useEvents } from '../hooks/use-game-selector'
-import { GamePanel, GamePanelHeader, GamePanelDivider } from './ui/game-panel'
+import { TileType, DemandLevel } from 'shared/types'
+import {
+  useMoney,
+  useEconomy,
+  useEvents,
+  useMapStats,
+} from '../hooks/use-game-selector'
+import { GamePanel, GamePanelDivider } from './ui/game-panel'
 import { ProgressBar } from './ui/progress-bar'
 import {
   DEMAND_TEXT_COLORS,
@@ -85,14 +88,19 @@ function AccordionSection({
 }
 
 export function InfoPanel() {
-  const engine = useEngine()
   const money = useMoney()
   const economy = useEconomy()
   const events = useEvents()
+  const mapStats = useMapStats()
 
-  const counts = engine.mapSystem.countTiles()
-  const usage = engine.mapSystem.getUsagePercent()
-  const connectionStats = engine.roadSystem.getConnectionStats()
+  const counts =
+    mapStats?.tileCounts ?? ({} as Partial<Record<TileType, number>>)
+  const usage = mapStats?.usagePercent ?? 0
+  const connectionStats = mapStats?.connectionStats ?? {
+    total: 0,
+    connected: 0,
+    disconnected: 0,
+  }
 
   const { resources, satisfaction, population, populationCapacity } = economy
 

@@ -6,17 +6,28 @@ import type {
   TileType,
   ToolType,
   TimeSpeed,
-} from 'shared/game-types'
-import { CAMERA_MIN_ZOOM, CAMERA_MAX_ZOOM } from '../constants'
+} from 'shared/types'
+import { CAMERA_MIN_ZOOM, CAMERA_MAX_ZOOM } from '../config'
 import { createInitialState, createInitialCamera } from './initial-state'
+
+/** GameState 的顶层键 */
+export type StateKey = keyof GameState
+
+interface KeyedSubscription {
+  keys: Set<StateKey>
+  listener: StateListener
+}
 
 /**
  * 游戏状态管理器 - 使用 pub/sub 模式
  * 兼容 React useSyncExternalStore
+ * 支持按键订阅，避免无关状态变更触发重渲染
  */
 export class GameStateManager {
   private state: GameState
   private listeners = new Set<StateListener>()
+  private keyedListeners = new Set<KeyedSubscription>()
+  private dirtyKeys = new Set<StateKey>()
   private batchDepth = 0
 
   constructor() {
@@ -32,7 +43,7 @@ export class GameStateManager {
     return this.state
   }
 
-  /** 订阅状态变更 (useSyncExternalStore 兼容) */
+  /** 订阅所有状态变更 (useSyncExternalStore 兼容) */
   subscribe = (listener: StateListener): (() => void) => {
     this.listeners.add(listener)
     return () => {
@@ -40,18 +51,53 @@ export class GameStateManager {
     }
   }
 
-  private notify(): void {
+  /** 订阅指定键的状态变更 — 仅当监听的键有变更时才通知 */
+  subscribeKeys = (keys: StateKey[], listener: StateListener): (() => void) => {
+    const sub: KeyedSubscription = { keys: new Set(keys), listener }
+    this.keyedListeners.add(sub)
+    return () => {
+      this.keyedListeners.delete(sub)
+    }
+  }
+
+  /** 标记变更的键 */
+  private markDirty(...keys: StateKey[]): void {
+    for (const key of keys) {
+      this.dirtyKeys.add(key)
+    }
+    if (this.batchDepth === 0) this.flush()
+  }
+
+  /** 刷新通知 — 仅通知监听键与 dirtyKeys 有交集的订阅者 */
+  private flush(): void {
     // 创建新引用以触发 React 重渲染
     this.state = { ...this.state }
+
+    // 通知全量订阅者
     for (const listener of this.listeners) {
       listener()
     }
+
+    // 通知按键订阅者（仅当关注的键有变更）
+    if (this.dirtyKeys.size > 0) {
+      for (const sub of this.keyedListeners) {
+        for (const key of sub.keys) {
+          if (this.dirtyKeys.has(key)) {
+            sub.listener()
+            break
+          }
+        }
+      }
+    }
+
+    this.dirtyKeys.clear()
   }
 
   /** 通用状态更新 — 替代所有 updateXxx / updateXxxSilent 方法 */
   update(patch: Partial<GameState>): void {
+    const keys = Object.keys(patch) as StateKey[]
     Object.assign(this.state, patch)
-    if (this.batchDepth === 0) this.notify()
+    this.markDirty(...keys)
   }
 
   /** 批量操作 — 函数内所有 update/addMoney 等调用只在结束时触发一次通知 */
@@ -61,21 +107,21 @@ export class GameStateManager {
       fn()
     } finally {
       this.batchDepth--
-      if (this.batchDepth === 0) this.notify()
+      if (this.batchDepth === 0) this.flush()
     }
   }
 
   setTool(tool: ToolType): void {
     if (this.state.currentTool === tool) return
     this.state.currentTool = tool
-    if (this.batchDepth === 0) this.notify()
+    this.markDirty('currentTool')
   }
 
   setHoveredTile(tile: { x: number; y: number } | null): void {
     const prev = this.state.hoveredTile
     if (prev?.x === tile?.x && prev?.y === tile?.y) return
     this.state.hoveredTile = tile
-    if (this.batchDepth === 0) this.notify()
+    this.markDirty('hoveredTile')
   }
 
   setTileAt(x: number, y: number, type: TileType, level = 1): void {
@@ -88,7 +134,7 @@ export class GameStateManager {
       connected: false,
       terrain: existing.terrain,
     }
-    if (this.batchDepth === 0) this.notify()
+    this.markDirty('map')
   }
 
   /** 设置瓦片但不触发通知（用于批量操作，调用方自行包在 batch 中） */
@@ -116,21 +162,21 @@ export class GameStateManager {
         changed = true
       }
     }
-    if (changed && this.batchDepth === 0) {
-      this.notify()
+    if (changed) {
+      this.markDirty('map')
     }
   }
 
   spendMoney(amount: number): boolean {
     if (this.state.money < amount) return false
     this.state.money -= amount
-    if (this.batchDepth === 0) this.notify()
+    this.markDirty('money')
     return true
   }
 
   addMoney(amount: number): void {
     this.state.money = Math.max(0, this.state.money + amount)
-    if (this.batchDepth === 0) this.notify()
+    this.markDirty('money')
   }
 
   getTileAt(x: number, y: number): Tile | null {
@@ -181,7 +227,7 @@ export class GameStateManager {
   setTimeSpeed(speed: TimeSpeed): void {
     if (this.state.time.speed === speed) return
     this.state.time = { ...this.state.time, speed }
-    if (this.batchDepth === 0) this.notify()
+    this.markDirty('time')
   }
 
   advanceDay(): void {
@@ -190,7 +236,7 @@ export class GameStateManager {
       day: this.state.time.day + 1,
       tickAccumulator: 0,
     }
-    if (this.batchDepth === 0) this.notify()
+    this.markDirty('time')
   }
 
   /** 升级瓦片等级 */
@@ -198,19 +244,28 @@ export class GameStateManager {
     const tile = this.state.map.tiles[y]?.[x]
     if (tile) {
       tile.level += 1
-      if (this.batchDepth === 0) this.notify()
+      this.markDirty('map')
     }
   }
 
   /** 从完整状态恢复（用于存档加载） */
   loadState(state: GameState): void {
     this.state = state
-    this.notify()
+    // 加载存档时标记所有键
+    this.dirtyKeys.clear()
+    for (const key of Object.keys(this.state) as StateKey[]) {
+      this.dirtyKeys.add(key)
+    }
+    this.flush()
   }
 
   /** 重置游戏 */
   resetGame(): void {
     this.state = createInitialState()
-    this.notify()
+    this.dirtyKeys.clear()
+    for (const key of Object.keys(this.state) as StateKey[]) {
+      this.dirtyKeys.add(key)
+    }
+    this.flush()
   }
 }

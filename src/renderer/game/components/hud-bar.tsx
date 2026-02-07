@@ -1,6 +1,5 @@
 import { useEffect, useRef } from 'react'
-import { TimeSpeed } from 'shared/game-types'
-import { DAY_DURATION_MS } from '../constants'
+import { TimeSpeed } from 'shared/types'
 import { useEngine } from '../context/game-engine-context'
 import { useTimeState } from '../hooks/use-game-selector'
 import { Pause, Play, FastForward, Menu } from 'lucide-react'
@@ -19,30 +18,21 @@ export function HudBar({ onOpenMenu }: HudBarProps) {
   const engine = useEngine()
   const time = useTimeState()
   const barRef = useRef<HTMLDivElement>(null)
-  const animFrameRef = useRef<number>(0)
 
   useEffect(() => {
-    const updateProgress = () => {
+    const gameLoop = engine.gameLoop
+    if (!gameLoop) return
+
+    const unsubscribe = gameLoop.onFrame(dayProgress => {
       const el = barRef.current
       if (el) {
-        const currentTime = engine.stateManager.getState().time
-        const pct = Math.min(
-          (currentTime.tickAccumulator / DAY_DURATION_MS) * 100,
-          100
-        )
+        const pct = Math.min(dayProgress * 100, 100)
         el.style.width = `${pct}%`
       }
-      animFrameRef.current = requestAnimationFrame(updateProgress)
-    }
+    })
 
-    animFrameRef.current = requestAnimationFrame(updateProgress)
-
-    return () => {
-      if (animFrameRef.current) {
-        cancelAnimationFrame(animFrameRef.current)
-      }
-    }
-  }, [engine.stateManager])
+    return unsubscribe
+  }, [engine.gameLoop])
 
   return (
     <div
@@ -86,7 +76,7 @@ export function HudBar({ onOpenMenu }: HudBarProps) {
                   : 'text-[var(--game-parchment)]/70 hover:bg-[var(--game-wood-light)]'
               }`}
               key={speed}
-              onClick={() => engine.stateManager.setTimeSpeed(speed)}
+              onClick={() => engine.setTimeSpeed(speed)}
               title={title}
               type="button"
             >

@@ -1,4 +1,4 @@
-import type { Milestone } from 'shared/game-types'
+import type { Milestone } from 'shared/types'
 
 export const SATISFACTION_STREAK_THRESHOLD = 70
 
