@@ -61,6 +61,7 @@ export enum ToolType {
 /** 瓦片数据 */
 export interface Tile {
   type: TileType
+  buildingId?: import('./building-defs').BuildingId
   x: number
   y: number
   level: number

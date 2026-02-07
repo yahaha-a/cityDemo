@@ -19,6 +19,8 @@ export const CRISIS_TEMPLATES: CrisisTemplate[] = [
     baseProbability: 0.3,
     preventedByFacilities: [TileType.FireStation],
     preventionThreshold: 0.4,
+    postEventId: 'road_decay',
+    postEventProbability: 0.5,
     options: [
       {
         id: 'firefight',
@@ -132,6 +134,8 @@ export const CRISIS_TEMPLATES: CrisisTemplate[] = [
     baseProbability: 0.15,
     preventedByFacilities: [TileType.Hospital],
     preventionThreshold: 0.5,
+    postEventId: 'service_demand',
+    postEventProbability: 1.0,
     options: [
       {
         id: 'quarantine',

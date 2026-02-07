@@ -1,4 +1,5 @@
 import type { ToolType, TimeSpeed, TileType } from 'shared/types'
+import type { BuildingId } from 'shared/types/building-defs'
 import { GameStateManager, type StateKey } from './game-state'
 import { GameLoop } from './game-loop'
 import { SystemRegistry } from './system-registry'
@@ -8,15 +9,12 @@ import { EconomySystem } from '../systems/economy-system'
 import { EventSystem } from '../systems/event-system'
 import { MilestoneSystem } from '../systems/milestone-system'
 import { SaveSystem } from '../systems/save-system'
-import { SynergySystem } from '../systems/synergy-system'
-import { FacilitySystem } from '../systems/facility-system'
 import { PolicySystem } from '../systems/policy-system'
 import { CrisisSystem } from '../systems/crisis-system'
 import { TechSystem } from '../systems/tech-system'
 import { SpecializationSystem } from '../systems/specialization-system'
-import { BuildingSystem } from '../systems/building-system'
-import { StructureSystem } from '../systems/structure-system'
-import { ProductionChainSystem } from '../systems/production-chain-system'
+import { BuildingSystemV2 } from '../systems/building-system'
+import { BuildingEffectSystem } from '../systems/building-effect-system'
 import type { GameEngineFacade } from '../context/engine-facade'
 
 /**
@@ -34,16 +32,13 @@ export class GameEngine implements GameEngineFacade {
   private readonly economySystem: EconomySystem
   private readonly eventSystem: EventSystem
   private readonly milestoneSystem: MilestoneSystem
-  readonly buildingSystem: BuildingSystem
+  readonly buildingSystem: BuildingSystemV2
   private readonly saveSystem: SaveSystem
-  private readonly synergySystem: SynergySystem
-  private readonly facilitySystem: FacilitySystem
   private readonly policySystem: PolicySystem
   private readonly crisisSystem: CrisisSystem
   private readonly techSystem: TechSystem
   private readonly specializationSystem: SpecializationSystem
-  readonly structureSystem: StructureSystem
-  private readonly productionChainSystem: ProductionChainSystem
+  private readonly buildingEffectSystem: BuildingEffectSystem
 
   constructor() {
     const sm = new GameStateManager()
@@ -56,25 +51,20 @@ export class GameEngine implements GameEngineFacade {
     this.mapSystem = new MapSystem(sm)
     this.eventSystem = new EventSystem(sm)
     this.policySystem = new PolicySystem(sm)
-    this.facilitySystem = new FacilitySystem(sm)
-    this.synergySystem = new SynergySystem(sm)
     this.specializationSystem = new SpecializationSystem(sm)
     this.saveSystem = new SaveSystem(sm)
     this.crisisSystem = new CrisisSystem(sm)
     this.techSystem = new TechSystem(sm)
     this.economySystem = new EconomySystem(sm)
     this.milestoneSystem = new MilestoneSystem(sm)
-    this.buildingSystem = new BuildingSystem(sm)
-    this.structureSystem = new StructureSystem(sm)
-    this.productionChainSystem = new ProductionChainSystem(sm)
+    this.buildingSystem = new BuildingSystemV2(sm)
+    this.buildingEffectSystem = new BuildingEffectSystem(sm)
 
     // 注册到注册表
     registry.register(this.roadSystem)
     registry.register(this.mapSystem)
     registry.register(this.eventSystem)
     registry.register(this.policySystem)
-    registry.register(this.facilitySystem)
-    registry.register(this.synergySystem)
     registry.register(this.specializationSystem)
     registry.register(this.saveSystem)
     registry.register(this.crisisSystem)
@@ -82,17 +72,13 @@ export class GameEngine implements GameEngineFacade {
     registry.register(this.economySystem)
     registry.register(this.milestoneSystem)
     registry.register(this.buildingSystem)
-    registry.register(this.structureSystem)
-    registry.register(this.productionChainSystem)
+    registry.register(this.buildingEffectSystem)
 
     // 定义每日处理顺序
     registry.setTickOrder([
       'event',
       'policy',
-      'facility',
-      'synergy',
-      'structure',
-      'production',
+      'buildingEffect',
       'tech',
       'crisis',
       'economy',
@@ -122,8 +108,8 @@ export class GameEngine implements GameEngineFacade {
   resetGame(): void {
     this.stateManager.resetGame()
   }
-  setSelectedStructureTemplate(templateId: string | null): void {
-    this.stateManager.setSelectedStructureTemplate(templateId)
+  setSelectedBuildingId(buildingId: BuildingId | null): void {
+    this.stateManager.setSelectedBuildingId(buildingId)
   }
 
   // === Facade: 政策系统 ===

@@ -43,7 +43,6 @@ import {
   LEVEL_INCOME_MULTIPLIER,
 } from '../config'
 import { ROAD_CONFIGS } from '../config/road'
-import { PRODUCTION_CHAINS } from '../config/production'
 
 /** 安全比率计算：clamp(supply/demand, 0, 1)，demand≤0 时返回 1 */
 function safeRatio(supply: number, demand: number): number {
@@ -101,7 +100,7 @@ export class EconomySystem implements IGameSystem {
    */
   processDailyEconomy(): void {
     const state = this.stateManager.getState()
-    const { map, economy, synergy, facilities, tech, productionChains } = state
+    const { map, economy, buildingEffects, tech } = state
     const currentPopulation = economy.population
     const prevSatisfaction = economy.satisfaction
 
@@ -148,36 +147,13 @@ export class EconomySystem implements IGameSystem {
     const techCommercialIncome =
       tech.permanentMultipliers.commercial_income ?? 1
 
-    // 协同乘数
-    const synergyIncomeRes = synergy.incomeMultByType.residential
-    const synergyIncomeCom = synergy.incomeMultByType.commercial
-    const synergyIncomeInd = synergy.incomeMultByType.industrial
-    const synergyEffCom = synergy.effMultByType.commercial
-    const synergyEffInd = synergy.effMultByType.industrial
-    const synergySatisfaction = synergy.globalSatisfactionMod
-
-    // 产业链加成
-    let chainSatisfactionBonus = 0
-    let chainCommercialIncomeMult = 1
-    let chainIndustrialEffMult = 1
-    for (const chain of PRODUCTION_CHAINS) {
-      const active = productionChains.activeChains[chain.id]
-      if (!active || active.completionRatio <= 0) continue
-      const { completionBonus } = chain
-      const ratio = active.completionRatio
-      if (completionBonus.type === 'satisfaction') {
-        chainSatisfactionBonus += completionBonus.value * ratio
-      } else if (completionBonus.type === 'income_multiplier') {
-        // 按比例插值: 1 + (value - 1) * ratio
-        if (completionBonus.target === 'commercial') {
-          chainCommercialIncomeMult *= 1 + (completionBonus.value - 1) * ratio
-        }
-      } else if (completionBonus.type === 'efficiency') {
-        if (completionBonus.target === 'industrial') {
-          chainIndustrialEffMult *= 1 + (completionBonus.value - 1) * ratio
-        }
-      }
-    }
+    // 协同乘数（从 buildingEffects 读取）
+    const synergyIncomeRes = buildingEffects.incomeMultByCategory.residential
+    const synergyIncomeCom = buildingEffects.incomeMultByCategory.commercial
+    const synergyIncomeInd = buildingEffects.incomeMultByCategory.industrial
+    const synergyEffCom = buildingEffects.effMultByCategory.commercial
+    const synergyEffInd = buildingEffects.effMultByCategory.industrial
+    const synergySatisfaction = buildingEffects.globalSatisfactionMod
 
     // === 步骤 1 - 普查（支持等级和地形加权） ===
     let capacityWeighted = 0
@@ -213,9 +189,9 @@ export class EconomySystem implements IGameSystem {
               const li = tile.level - 1
               const capMult = LEVEL_CAPACITY_MULTIPLIER[li]
               const incMult = LEVEL_INCOME_MULTIPLIER[li]
-              // 设施覆盖容量乘数
-              const facCoverage = facilities.coverage[`${x},${y}`]
-              const facCapMult = facCoverage?.capacityMultiplier ?? 1
+              // 设施覆盖容量乘数（从 buildingEffects.tileEffects 读取）
+              const tileEffect = buildingEffects.tileEffects[`${x},${y}`]
+              const facCapMult = tileEffect?.capacityMultiplier ?? 1
               capacityWeighted +=
                 POP_CAPACITY_PER_RESIDENTIAL *
                 capMult *
@@ -226,9 +202,9 @@ export class EconomySystem implements IGameSystem {
               if (this.hasAdjacentWater(x, y)) {
                 waterAdjacentResCount++
               }
-              // 收集设施满意度修正（避免步骤5的二次遍历）
-              if (facCoverage) {
-                facilSatTotal += facCoverage.satisfactionMod
+              // 收集设施满意度修正
+              if (tileEffect) {
+                facilSatTotal += tileEffect.satisfactionMod
                 facilSatCount++
               }
             }
@@ -262,7 +238,6 @@ export class EconomySystem implements IGameSystem {
             }
             break
           default:
-            // 设施类型不参与经济产出计算
             break
         }
       }
@@ -290,8 +265,7 @@ export class EconomySystem implements IGameSystem {
       specIndustrialMult *
       techIndustrialEff *
       synergyEffInd *
-      specAllProdMult *
-      chainIndustrialEffMult
+      specAllProdMult
 
     const goodsSupply = goodsSupplyWeighted * industrialProdMult
     const goodsDemand = goodsDemandWeighted * evtGoodsDemandMult
@@ -330,16 +304,15 @@ export class EconomySystem implements IGameSystem {
         comIncomeWeighted *
           commercialEff *
           synergyIncomeCom *
-          techCommercialIncome *
-          chainCommercialIncomeMult +
+          techCommercialIncome +
         indIncomeWeighted * industrialEff * synergyIncomeInd) *
       totalIncomeMult
 
-    // 支出: 道路维护 + 设施维护
+    // 支出: 道路维护 + 建筑维护（从 buildingEffects 读取）
     const roadExpenses =
       roadMaintenanceTotal * evtRoadMaintMult * policyRoadMaintMult
-    const facilityExpenses = facilities.totalMaintenance
-    const expenses = (roadExpenses + facilityExpenses) * policyExpenseMult
+    const buildingMaintenance = buildingEffects.totalMaintenance
+    const expenses = (roadExpenses + buildingMaintenance) * policyExpenseMult
     const netRevenue = Math.round(income - expenses)
 
     // === 步骤 5 - 满意度（含政策、协同、设施、特色修正） ===
@@ -374,9 +347,6 @@ export class EconomySystem implements IGameSystem {
 
     // 特色满意度修正
     rawSatisfaction += specSatisfaction
-
-    // 产业链满意度加成
-    rawSatisfaction += chainSatisfactionBonus
 
     // 设施满意度修正（步骤1中已收集）
     if (facilSatCount > 0) {
@@ -516,7 +486,7 @@ export class EconomySystem implements IGameSystem {
     satisfaction: number
   } {
     const state = this.stateManager.getState()
-    const { map, economy, synergy, facilities, tech, productionChains } = state
+    const { map, economy, buildingEffects, tech } = state
     const currentPopulation = economy.population
 
     // === 聚合所有系统乘数（与 processDailyEconomy 保持一致） ===
@@ -550,30 +520,11 @@ export class EconomySystem implements IGameSystem {
     const techCommercialIncome =
       tech.permanentMultipliers.commercial_income ?? 1
 
-    const synergyIncomeRes = synergy.incomeMultByType.residential
-    const synergyIncomeCom = synergy.incomeMultByType.commercial
-    const synergyIncomeInd = synergy.incomeMultByType.industrial
-    const synergyEffCom = synergy.effMultByType.commercial
-    const synergyEffInd = synergy.effMultByType.industrial
-
-    // 产业链加成
-    let chainCommercialIncomeMult = 1
-    let chainIndustrialEffMult = 1
-    for (const chain of PRODUCTION_CHAINS) {
-      const active = productionChains.activeChains[chain.id]
-      if (!active || active.completionRatio <= 0) continue
-      const { completionBonus } = chain
-      const ratio = active.completionRatio
-      if (completionBonus.type === 'income_multiplier') {
-        if (completionBonus.target === 'commercial') {
-          chainCommercialIncomeMult *= 1 + (completionBonus.value - 1) * ratio
-        }
-      } else if (completionBonus.type === 'efficiency') {
-        if (completionBonus.target === 'industrial') {
-          chainIndustrialEffMult *= 1 + (completionBonus.value - 1) * ratio
-        }
-      }
-    }
+    const synergyIncomeRes = buildingEffects.incomeMultByCategory.residential
+    const synergyIncomeCom = buildingEffects.incomeMultByCategory.commercial
+    const synergyIncomeInd = buildingEffects.incomeMultByCategory.industrial
+    const synergyEffCom = buildingEffects.effMultByCategory.commercial
+    const synergyEffInd = buildingEffects.effMultByCategory.industrial
 
     // === 普查 ===
     let resIncome = 0
@@ -650,8 +601,7 @@ export class EconomySystem implements IGameSystem {
       specIndustrialMult *
       techIndustrialEff *
       synergyEffInd *
-      specAllProdMult *
-      chainIndustrialEffMult
+      specAllProdMult
 
     const goodsSupply = goodsSupplyW * industrialProdMult
     const goodsDemand = goodsDemandW * evtGoodsDemandMult
@@ -684,19 +634,15 @@ export class EconomySystem implements IGameSystem {
 
     const income =
       (resIncome * residentialEff * synergyIncomeRes +
-        comIncome *
-          commercialEff *
-          synergyIncomeCom *
-          techCommercialIncome *
-          chainCommercialIncomeMult +
+        comIncome * commercialEff * synergyIncomeCom * techCommercialIncome +
         indIncome * industrialEff * synergyIncomeInd) *
       totalIncomeMult
 
-    // 支出: 道路维护 + 设施维护
+    // 支出: 道路维护 + 建筑维护
     const roadExpenses =
       roadMaintenanceProj * evtRoadMaintMult * policyRoadMaintMult
-    const facilityExpenses = facilities.totalMaintenance
-    const expenses = (roadExpenses + facilityExpenses) * policyExpenseMult
+    const buildingMaintenance = buildingEffects.totalMaintenance
+    const expenses = (roadExpenses + buildingMaintenance) * policyExpenseMult
 
     return {
       income: Math.round(income),

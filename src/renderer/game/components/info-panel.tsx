@@ -1,10 +1,14 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { TileType, DemandLevel } from 'shared/types'
+import type { BuildingCategory } from 'shared/types/building-defs'
+import { getTileBuildingId } from 'shared/types/building-compat'
+import { getBuildingDef } from '../config/building-defs'
 import {
   useMoney,
   useEconomy,
   useEvents,
   useMapStats,
+  useGameSelector,
 } from '../hooks/use-game-selector'
 import { GamePanel, GamePanelDivider } from './ui/game-panel'
 import { ProgressBar } from './ui/progress-bar'
@@ -16,6 +20,13 @@ import {
 } from './ui/theme'
 import { Coins, Users, SmilePlus, BarChart3, ChevronDown } from 'lucide-react'
 import { cn } from 'renderer/lib/utils'
+
+const CATEGORY_LABELS: Record<BuildingCategory, string> = {
+  residential: '住宅',
+  commercial: '商业',
+  industrial: '工业',
+  service: '服务',
+}
 
 const DEMAND_LABELS: Record<DemandLevel, string> = {
   [DemandLevel.Low]: '充足',
@@ -92,6 +103,10 @@ export function InfoPanel() {
   const economy = useEconomy()
   const events = useEvents()
   const mapStats = useMapStats()
+  const buildingEffects = useGameSelector(s => s.buildingEffects, {
+    keys: ['buildingEffects'],
+  })
+  const map = useGameSelector(s => s.map, { keys: ['map'] })
 
   const counts =
     mapStats?.tileCounts ?? ({} as Partial<Record<TileType, number>>)
@@ -101,6 +116,28 @@ export function InfoPanel() {
     connected: 0,
     disconnected: 0,
   }
+
+  // 按建筑分类统计数量
+  const categoryCounts = useMemo(() => {
+    const result: Record<BuildingCategory, number> = {
+      residential: 0,
+      commercial: 0,
+      industrial: 0,
+      service: 0,
+    }
+    if (!map) return result
+    for (const row of map.tiles) {
+      for (const tile of row) {
+        const bid = getTileBuildingId(tile)
+        if (bid === 'empty' || bid === 'road') continue
+        const def = getBuildingDef(bid)
+        if (def) result[def.category]++
+      }
+    }
+    return result
+  }, [map])
+
+  const res = buildingEffects.resources
 
   const { resources, satisfaction, population, populationCapacity } = economy
 
@@ -218,22 +255,22 @@ export function InfoPanel() {
       >
         <div className="space-y-1.5">
           <ResourceBar
-            demand={resources.labor.demand}
+            demand={res.laborDemand}
             label="劳动力"
-            ratio={resources.labor.ratio}
-            supply={resources.labor.supply}
+            ratio={res.laborFulfillment}
+            supply={res.laborSupply}
           />
           <ResourceBar
-            demand={resources.goods.demand}
+            demand={res.goodsDemand}
             label="货物"
-            ratio={resources.goods.ratio}
-            supply={resources.goods.supply}
+            ratio={res.goodsFulfillment}
+            supply={res.goodsSupply}
           />
           <ResourceBar
-            demand={resources.services.demand}
+            demand={res.servicesDemand}
             label="服务"
-            ratio={resources.services.ratio}
-            supply={resources.services.supply}
+            ratio={res.servicesFulfillment}
+            supply={res.servicesSupply}
           />
         </div>
       </AccordionSection>
@@ -283,18 +320,19 @@ export function InfoPanel() {
             <span>道路</span>
             <span>{counts[TileType.Road]}</span>
           </div>
-          <div className="flex justify-between">
-            <span>住宅</span>
-            <span>{counts[TileType.Residential]}</span>
-          </div>
-          <div className="flex justify-between">
-            <span>商业</span>
-            <span>{counts[TileType.Commercial]}</span>
-          </div>
-          <div className="flex justify-between">
-            <span>工业</span>
-            <span>{counts[TileType.Industrial]}</span>
-          </div>
+          {(
+            [
+              'residential',
+              'commercial',
+              'industrial',
+              'service',
+            ] as BuildingCategory[]
+          ).map(cat => (
+            <div className="flex justify-between" key={cat}>
+              <span>{CATEGORY_LABELS[cat]}</span>
+              <span>{categoryCounts[cat]}</span>
+            </div>
+          ))}
           <GamePanelDivider className="my-1 opacity-30" />
           <div className="flex justify-between">
             <span>土地利用</span>

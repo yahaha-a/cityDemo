@@ -1,15 +1,14 @@
 import type { GameMap, Camera, TimeState, ToolType, TileType } from './core'
+import type { BuildingId } from './building-defs'
+import type { BuildingEffectState } from './building-effects'
 import type { EconomyState } from './economy'
 import type { EventState } from './events'
 import type { MilestoneState } from './milestones'
-import type { SynergyState } from './synergy'
-import type { FacilityCoverageState } from './facilities'
 import type { PolicyState } from './policies'
 import type { ChallengeState } from './crisis'
 import type { TechState } from './tech'
 import type { SpecializationState } from './specialization'
 import type { StructureRegistry } from './structures'
-import type { ProductionChainState } from './production'
 
 /** 派生的地图统计数据（按需计算、缓存） */
 export interface DerivedMapStats {
@@ -29,7 +28,7 @@ export interface GameState {
   money: number
   currentTool: ToolType
   hoveredTile: { x: number; y: number } | null
-  selectedStructureTemplate: string | null
+  selectedBuildingId: BuildingId | null
   camera: Camera
   time: TimeState
   economy: EconomyState
@@ -37,14 +36,12 @@ export interface GameState {
   mapSeed: number
   events: EventState
   milestones: MilestoneState
-  synergy: SynergyState
-  facilities: FacilityCoverageState
   policies: PolicyState
   challenge: ChallengeState
   tech: TechState
   specialization: SpecializationState
   structures: StructureRegistry
-  productionChains: ProductionChainState
+  buildingEffects: BuildingEffectState
   _derived: DerivedState
 }
 
@@ -53,10 +50,7 @@ export interface SaveData {
   version: string
   timestamp: number
   name: string
-  gameState: Omit<
-    GameState,
-    'hoveredTile' | 'selectedStructureTemplate' | '_derived'
-  >
+  gameState: Omit<GameState, 'hoveredTile' | 'selectedBuildingId' | '_derived'>
 }
 
 /** 状态变更监听器类型 */

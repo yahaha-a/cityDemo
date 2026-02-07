@@ -3,19 +3,13 @@ import {
   TILE_LABELS,
   TERRAIN_LABELS,
   TERRAIN_BUILD_COST_MULTIPLIER,
-  BUILDING_COSTS,
   UPGRADE_COST_MULTIPLIER,
-  MAX_BUILDING_LEVEL,
 } from '../config'
 import { TileType, TerrainType } from 'shared/types'
-import {
-  useHoveredTile,
-  useMap,
-  useEconomy,
-  useGameSelector,
-} from '../hooks/use-game-selector'
+import { getTileBuildingId } from 'shared/types/building-compat'
+import { getBuildingDef } from '../config/building-defs'
+import { useHoveredTile, useMap, useEconomy } from '../hooks/use-game-selector'
 import { ROAD_CONFIGS } from '../config/road'
-import { getStructureTemplate } from '../config/structures'
 
 function terrainEffectText(terrain: TerrainType): string | null {
   switch (terrain) {
@@ -37,9 +31,6 @@ export function TileTooltip() {
   const hoveredTile = useHoveredTile()
   const map = useMap()
   const economy = useEconomy()
-  const structures = useGameSelector(s => s.structures, {
-    keys: ['structures'],
-  })
 
   const handleMouseMove = useCallback((e: MouseEvent) => {
     const el = tooltipRef.current
@@ -61,6 +52,10 @@ export function TileTooltip() {
   const { efficiencyByType } = economy
   const effect = terrainEffectText(tileData.terrain)
 
+  const bid = getTileBuildingId(tileData)
+  const buildingDef =
+    bid !== 'empty' && bid !== 'road' ? getBuildingDef(bid) : null
+
   return (
     <div
       className="fixed z-50 pointer-events-none px-2 py-1.5 rounded-[var(--game-radius-sm)] game-parchment-bg border border-[var(--game-wood)] shadow-[0_2px_8px_oklch(0.2_0.05_55/0.2)] text-xs text-[var(--game-text)] space-y-0.5 max-w-[200px]"
@@ -70,21 +65,19 @@ export function TileTooltip() {
       <div className="text-[var(--game-text-muted)]">
         ({hoveredTile.x}, {hoveredTile.y})
       </div>
-      <div>类型: {TILE_LABELS[tileData.type]}</div>
-      {tileData.structureId &&
-        (() => {
-          const inst = structures.instances[tileData.structureId]
-          const tmpl = inst ? getStructureTemplate(inst.templateId) : undefined
-          return tmpl ? (
-            <div className="text-[var(--game-gold)]">
-              建筑: {tmpl.name}{' '}
-              <span className="text-[var(--game-text-muted)] text-[10px]">
-                ({Math.max(...tmpl.footprint.map(f => f.dx)) + 1}x
-                {Math.max(...tmpl.footprint.map(f => f.dy)) + 1})
-              </span>
-            </div>
-          ) : null
-        })()}
+      {buildingDef ? (
+        <div>
+          建筑: {buildingDef.name}
+          {buildingDef.footprint.length > 1 && (
+            <span className="text-[var(--game-text-muted)] text-[10px] ml-1">
+              ({Math.max(...buildingDef.footprint.map(f => f.dx)) + 1}x
+              {Math.max(...buildingDef.footprint.map(f => f.dy)) + 1})
+            </span>
+          )}
+        </div>
+      ) : (
+        <div>类型: {TILE_LABELS[tileData.type]}</div>
+      )}
       {tileData.type === TileType.Road && tileData.roadType && (
         <div className="text-[var(--game-text-muted)]">
           道路: {ROAD_CONFIGS[tileData.roadType].name}
@@ -96,7 +89,7 @@ export function TileTooltip() {
       {effect && (
         <div className="text-[var(--game-gold)] text-[10px]">{effect}</div>
       )}
-      {tileData.type !== TileType.Empty && tileData.type !== TileType.Road && (
+      {buildingDef && (
         <>
           <div className="text-[var(--game-text-muted)]">
             等级: Lv{tileData.level}
@@ -123,12 +116,11 @@ export function TileTooltip() {
               %
             </div>
           )}
-          {tileData.level < MAX_BUILDING_LEVEL && (
+          {tileData.level < buildingDef.maxLevel && (
             <div className="text-[var(--game-text-muted)] text-[10px]">
               升级费用: $
               {Math.ceil(
-                (BUILDING_COSTS[tileData.type as keyof typeof BUILDING_COSTS] ??
-                  0) *
+                buildingDef.cost *
                   (Number.isFinite(
                     TERRAIN_BUILD_COST_MULTIPLIER[tileData.terrain]
                   )

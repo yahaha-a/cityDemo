@@ -13,9 +13,14 @@ export interface MilestoneCondition {
 }
 
 export interface MilestoneReward {
-  type: 'bonus_money' | 'unlock_upgrade_lv3' | 'unlock_event'
+  type:
+    | 'bonus_money'
+    | 'unlock_upgrade_lv3'
+    | 'unlock_event'
+    | 'unlock_building'
   value?: number
   eventId?: string
+  buildingId?: string
 }
 
 export interface Milestone {

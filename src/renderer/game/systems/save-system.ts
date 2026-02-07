@@ -1,10 +1,11 @@
 import type { GameState, SaveData } from 'shared/types'
-import { DemandLevel, TerrainType } from 'shared/types'
+import { DemandLevel, TerrainType, type TileType } from 'shared/types'
+import { TILE_TYPE_TO_BUILDING_ID } from 'shared/types/building-compat'
 import type { GameStateManager } from '../engine/game-state'
 import type { IGameSystem } from '../engine/system-registry'
 import { EVENT_BASE_COOLDOWN, MAP_WIDTH, MAP_HEIGHT } from '../config'
 
-const SAVE_VERSION = '1.3.0'
+const SAVE_VERSION = '2.0.0'
 const STORAGE_KEY = 'city-demo-saves'
 const MAX_SAVE_SLOTS = 10
 const AUTO_SAVE_INTERVAL = 5 * 60 * 1000 // 5 分钟
@@ -159,7 +160,6 @@ export class SaveSystem implements IGameSystem {
     }
 
     // v1.1.0 → v1.2.0: 添加地形、事件、里程碑字段
-    // 为所有瓦片添加 terrain 属性
     const map = gs.map as { tiles: Array<Array<Record<string, unknown>>> }
     if (map?.tiles) {
       for (let y = 0; y < MAP_HEIGHT && y < map.tiles.length; y++) {
@@ -195,25 +195,7 @@ export class SaveSystem implements IGameSystem {
       }
     }
 
-    // v1.2.0 → v1.3.0: 添加新系统状态字段
-    if (gs.synergy === undefined) {
-      gs.synergy = {
-        tileEffects: {},
-        globalSatisfactionMod: 0,
-        incomeMultByType: { residential: 1, commercial: 1, industrial: 1 },
-        effMultByType: { residential: 1, commercial: 1, industrial: 1 },
-      }
-    }
-
-    if (gs.facilities === undefined) {
-      gs.facilities = {
-        coverage: {},
-        totalMaintenance: 0,
-        totalResearchPoints: 0,
-        avgCrisisResistance: 0,
-      }
-    }
-
+    // v1.2.0 → v1.3.0: 添加政策、危机、科技等
     if (gs.policies === undefined) {
       gs.policies = {
         activePolicies: [],
@@ -263,11 +245,59 @@ export class SaveSystem implements IGameSystem {
       }
     }
 
-    if (gs.productionChains === undefined) {
-      gs.productionChains = {
-        activeChains: {},
+    // v1.3.0 → v2.0.0: 统一建筑系统迁移
+    // 为所有 tile 补充 buildingId（从 type 映射）
+    if (map?.tiles) {
+      for (let y = 0; y < MAP_HEIGHT && y < map.tiles.length; y++) {
+        for (let x = 0; x < MAP_WIDTH && x < map.tiles[y].length; x++) {
+          const tile = map.tiles[y][x]
+          if (tile.buildingId === undefined) {
+            const tileType = tile.type as TileType
+            tile.buildingId = TILE_TYPE_TO_BUILDING_ID[tileType] ?? 'empty'
+          }
+        }
       }
     }
+
+    // 创建默认 buildingEffects（如果不存在）
+    if (gs.buildingEffects === undefined) {
+      gs.buildingEffects = {
+        tileEffects: {},
+        globalSatisfactionMod: 0,
+        incomeMultByCategory: {
+          residential: 1,
+          commercial: 1,
+          industrial: 1,
+          service: 1,
+        },
+        effMultByCategory: {
+          residential: 1,
+          commercial: 1,
+          industrial: 1,
+          service: 1,
+        },
+        totalMaintenance: 0,
+        totalResearchPoints: 0,
+        avgCrisisResistance: 0,
+        resources: {
+          laborSupply: 0,
+          laborDemand: 0,
+          laborFulfillment: 1,
+          goodsSupply: 0,
+          goodsDemand: 0,
+          goodsFulfillment: 1,
+          servicesSupply: 0,
+          servicesDemand: 0,
+          servicesFulfillment: 1,
+        },
+      }
+    }
+
+    // 移除旧字段
+    delete gs.synergy
+    delete gs.facilities
+    delete gs.productionChains
+    delete gs.selectedStructureTemplate
 
     saveData.version = SAVE_VERSION
     console.log('[SaveSystem] Migrated save data to', SAVE_VERSION)
@@ -312,9 +342,36 @@ export class SaveSystem implements IGameSystem {
     const fullState: GameState = {
       ...saveData.gameState,
       hoveredTile: null,
-      selectedStructureTemplate: null,
-      productionChains: saveData.gameState.productionChains ?? {
-        activeChains: {},
+      selectedBuildingId: null,
+      buildingEffects: saveData.gameState.buildingEffects ?? {
+        tileEffects: {},
+        globalSatisfactionMod: 0,
+        incomeMultByCategory: {
+          residential: 1,
+          commercial: 1,
+          industrial: 1,
+          service: 1,
+        },
+        effMultByCategory: {
+          residential: 1,
+          commercial: 1,
+          industrial: 1,
+          service: 1,
+        },
+        totalMaintenance: 0,
+        totalResearchPoints: 0,
+        avgCrisisResistance: 0,
+        resources: {
+          laborSupply: 0,
+          laborDemand: 0,
+          laborFulfillment: 1,
+          goodsSupply: 0,
+          goodsDemand: 0,
+          goodsFulfillment: 1,
+          servicesSupply: 0,
+          servicesDemand: 0,
+          servicesFulfillment: 1,
+        },
       },
       _derived: { mapStats: null },
     }

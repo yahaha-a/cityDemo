@@ -2,6 +2,7 @@ import { useRef, useCallback } from 'react'
 import type * as THREE from 'three'
 import type { ThreeEvent } from '@react-three/fiber'
 import { MAP_WIDTH, MAP_HEIGHT } from '../config'
+import { getBuildingDef } from '../config/building-defs'
 import { useGameStore } from '../stores/game-store'
 import type { GameEngine } from '../engine/game-engine'
 
@@ -30,12 +31,21 @@ export function InputPlane() {
       if (grid) {
         ge.stateManager.setHoveredTile(grid)
 
-        // 多格建筑模式下不支持拖动建造
-        if (
-          isBuildingRef.current &&
-          !ge.stateManager.getState().selectedStructureTemplate
-        ) {
-          ge.buildingSystem.tryAction(grid.x, grid.y)
+        // 拖动建造：仅单格建筑（footprint.length === 1）支持拖动
+        if (isBuildingRef.current) {
+          const state = ge.stateManager.getState()
+          const selectedBuildingId = state.selectedBuildingId
+
+          if (selectedBuildingId) {
+            const def = getBuildingDef(selectedBuildingId)
+            // 多格建筑不拖动
+            if (def && def.footprint.length === 1) {
+              ge.buildingSystem.tryAction(grid.x, grid.y)
+            }
+          } else {
+            // 非建筑选中模式：允许拖动
+            ge.buildingSystem.tryAction(grid.x, grid.y)
+          }
         }
       } else {
         ge.stateManager.setHoveredTile(null)
@@ -56,12 +66,17 @@ export function InputPlane() {
       if (!grid) return
 
       const ge = engine as GameEngine
+      const state = ge.stateManager.getState()
 
-      // 多格建筑放置
-      const templateId = ge.stateManager.getState().selectedStructureTemplate
-      if (templateId) {
-        ge.structureSystem.tryPlaceStructure(templateId, grid.x, grid.y)
-        return
+      // 新路径：selectedBuildingId
+      const selectedBuildingId = state.selectedBuildingId
+      if (selectedBuildingId) {
+        const def = getBuildingDef(selectedBuildingId)
+        if (def && def.footprint.length > 1) {
+          // 多格建筑：仅点击放置
+          ge.buildingSystem.tryPlaceBuilding(selectedBuildingId, grid.x, grid.y)
+          return
+        }
       }
 
       isBuildingRef.current = true
