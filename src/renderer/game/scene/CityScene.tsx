@@ -18,7 +18,7 @@ export function CityScene() {
         far: 500,
       }}
       gl={{
-        antialias: true,
+        antialias: false,
         toneMapping: 0, // 由 postprocessing 处理
         powerPreference: 'high-performance',
       }}

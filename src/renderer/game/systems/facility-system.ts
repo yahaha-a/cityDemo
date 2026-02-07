@@ -10,10 +10,12 @@ import { MAP_WIDTH, MAP_HEIGHT, getFacilityTemplate } from '../config'
 
 /**
  * 区域设施系统 - 计算设施覆盖范围和区域效果
+ * 缓存 coverage 结果，仅在 map 变化时重算
  */
 export class FacilitySystem implements IGameSystem {
   readonly id = 'facility'
   private stateManager: GameStateManager
+  private lastMapRef: unknown = null
 
   constructor(stateManager: GameStateManager) {
     this.stateManager = stateManager
@@ -43,7 +45,14 @@ export class FacilitySystem implements IGameSystem {
   processDailyFacilities(): void {
     const state = this.stateManager.getState()
     const { map } = state
+
+    // 缓存检查：map 未变则跳过重新计算
+    if (map === this.lastMapRef) return
+    this.lastMapRef = map
+
     const coverage: Record<string, FacilityCoverageInfo> = {}
+    // 用数字键做内部去重检查，字符串键仅用于最终输出
+    const coverageByNum = new Map<number, FacilityCoverageInfo>()
     let totalMaintenance = 0
     let totalResearchPoints = 0
     let crisisResistanceSum = 0
@@ -71,9 +80,10 @@ export class FacilitySystem implements IGameSystem {
             if (tx < 0 || tx >= MAP_WIDTH || ty < 0 || ty >= MAP_HEIGHT)
               continue
 
-            const key = `${tx},${ty}`
-            if (!coverage[key]) {
-              coverage[key] = {
+            const numKey = tx + ty * MAP_WIDTH
+            let info = coverageByNum.get(numKey)
+            if (!info) {
+              info = {
                 satisfactionMod: 0,
                 incomeMultiplier: 1,
                 efficiencyMultiplier: 1,
@@ -82,9 +92,10 @@ export class FacilitySystem implements IGameSystem {
                 researchPoints: 0,
                 facilities: [],
               }
+              coverageByNum.set(numKey, info)
+              coverage[`${tx},${ty}`] = info
             }
 
-            const info = coverage[key]
             const targetTile = map.tiles[ty][tx]
 
             for (const effect of template.effects) {

@@ -37,9 +37,14 @@ const TERRAIN_Y_MAP: Record<string, number> = {
 }
 
 const dummy = new THREE.Object3D()
+// 复用单个 Color 实例，避免每帧大量 GC
+const tmpColor = new THREE.Color()
 
 export function Buildings() {
   const meshRefs = useRef<Record<string, THREE.InstancedMesh | null>>({})
+  // 脏标记：记录上次处理时的 map 和 efficiencyByType 引用
+  const prevMapRef = useRef<unknown>(null)
+  const prevEffRef = useRef<unknown>(null)
 
   // 为每种建筑类型创建材质
   const materials = useMemo(() => {
@@ -69,10 +74,16 @@ export function Buildings() {
     const { map, economy } = state
     const effByType = economy.efficiencyByType
 
-    // 统计每种建筑数量
+    // 引用比较：如果 map 和 economy.efficiencyByType 都没变，跳过本帧
+    if (map === prevMapRef.current && effByType === prevEffRef.current) return
+    prevMapRef.current = map
+    prevEffRef.current = effByType
+
+    // 单次遍历：同时统计数量和设置矩阵
     const counts: Record<string, number> = {}
     for (const t of BUILDING_TYPES) counts[t] = 0
 
+    // 第一遍先统计数量（必须先知道 count 才能正确设置 mesh.count）
     for (let y = 0; y < map.height; y++) {
       for (let x = 0; x < map.width; x++) {
         const tile = map.tiles[y][x]
@@ -82,10 +93,18 @@ export function Buildings() {
       }
     }
 
-    // 设置实例矩阵
+    // 设置 count 并重置索引
+    for (const t of BUILDING_TYPES) {
+      const mesh = meshRefs.current[t]
+      if (mesh && mesh.count !== counts[t]) {
+        mesh.count = counts[t]
+      }
+    }
+
     const indices: Record<string, number> = {}
     for (const t of BUILDING_TYPES) indices[t] = 0
 
+    // 第二遍：设置矩阵和颜色（复用 tmpColor）
     for (let y = 0; y < map.height; y++) {
       for (let x = 0; x < map.width; x++) {
         const tile = map.tiles[y][x]
@@ -94,10 +113,6 @@ export function Buildings() {
         const t = tile.type as (typeof BUILDING_TYPES)[number]
         const mesh = meshRefs.current[t]
         if (!mesh) continue
-
-        if (mesh.count !== counts[t]) {
-          mesh.count = counts[t]
-        }
 
         const idx = indices[t]++
         const worldX = x - MAP_WIDTH / 2 + 0.5
@@ -115,10 +130,10 @@ export function Buildings() {
         dummy.updateMatrix()
         mesh.setMatrixAt(idx, dummy.matrix)
 
-        // 颜色：未连接变灰，低效率去饱和
-        const baseColor = new THREE.Color(TILE_COLORS[tile.type].top)
+        // 颜色：复用 tmpColor 避免分配
+        tmpColor.set(TILE_COLORS[tile.type].top)
         if (!tile.connected && isBuilding(tile.type)) {
-          baseColor.multiplyScalar(0.4)
+          tmpColor.multiplyScalar(0.4)
         } else if (isCoreBuilding(tile.type)) {
           const eff =
             tile.type === TileType.Residential
@@ -127,14 +142,14 @@ export function Buildings() {
                 ? effByType.commercial
                 : effByType.industrial
           if (eff < 1) {
-            const gray = (baseColor.r + baseColor.g + baseColor.b) / 3
+            const gray = (tmpColor.r + tmpColor.g + tmpColor.b) / 3
             const factor = (1 - eff) * 0.6
-            baseColor.r = baseColor.r * (1 - factor) + gray * factor
-            baseColor.g = baseColor.g * (1 - factor) + gray * factor
-            baseColor.b = baseColor.b * (1 - factor) + gray * factor
+            tmpColor.r = tmpColor.r * (1 - factor) + gray * factor
+            tmpColor.g = tmpColor.g * (1 - factor) + gray * factor
+            tmpColor.b = tmpColor.b * (1 - factor) + gray * factor
           }
         }
-        mesh.setColorAt(idx, baseColor)
+        mesh.setColorAt(idx, tmpColor)
       }
     }
 
@@ -156,6 +171,7 @@ export function Buildings() {
         <instancedMesh
           args={[geometry, materials[t], maxCount]}
           castShadow
+          frustumCulled={false}
           key={t}
           receiveShadow
           ref={el => {

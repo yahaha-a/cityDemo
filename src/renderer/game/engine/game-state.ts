@@ -70,6 +70,14 @@ export class GameStateManager {
 
   /** 刷新通知 — 仅通知监听键与 dirtyKeys 有交集的订阅者 */
   private flush(): void {
+    // 为 dirty 的嵌套对象创建新引用，使场景组件的引用比较能检测到变化
+    if (this.dirtyKeys.has('map')) {
+      this.state.map = { ...this.state.map }
+    }
+    if (this.dirtyKeys.has('economy')) {
+      this.state.economy = { ...this.state.economy }
+    }
+
     // 创建新引用以触发 React 重渲染
     this.state = { ...this.state }
 
