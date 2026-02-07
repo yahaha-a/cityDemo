@@ -1,13 +1,24 @@
 import { memo, useMemo, useState } from 'react'
-import { ToolType, TileType } from 'shared/types'
+import {
+  ToolType,
+  TileType,
+  RoadType,
+  isRoadTool,
+  isTerraformTool,
+} from 'shared/types'
 import type { DemandIndicators } from 'shared/types'
 import { TOOL_LABELS, BUILDING_COSTS, FACILITY_TEMPLATES } from '../config'
+import { ROAD_CONFIGS } from '../config/road'
+import { TERRAFORM_ACTIONS } from '../config/terraform'
+import { STRUCTURE_TEMPLATES } from '../config/structures'
 import {
   useCurrentTool,
   useMoney,
   useEconomy,
   useTechState,
+  useGameSelector,
 } from '../hooks/use-game-selector'
+import { useEngine } from '../context/game-engine-context'
 import { DEMAND_DOT_COLORS } from './ui/theme'
 import {
   MousePointer2,
@@ -27,6 +38,13 @@ import {
   ScrollText,
   FlaskConical,
   Landmark,
+  Waypoints,
+  Mountain,
+  Droplets,
+  Shovel,
+  MountainSnow,
+  Building2,
+  Link,
 } from 'lucide-react'
 import { cn } from 'renderer/lib/utils'
 
@@ -36,6 +54,9 @@ const TOOL_ICONS: Record<
 > = {
   [ToolType.Select]: MousePointer2,
   [ToolType.Road]: Route,
+  [ToolType.Highway]: Waypoints,
+  [ToolType.Bridge]: Route,
+  [ToolType.Tunnel]: Route,
   [ToolType.Residential]: Home,
   [ToolType.Commercial]: Store,
   [ToolType.Industrial]: Factory,
@@ -47,11 +68,21 @@ const TOOL_ICONS: Record<
   [ToolType.PowerPlant]: Zap,
   [ToolType.Upgrade]: ArrowBigUp,
   [ToolType.Demolish]: Trash2,
+  [ToolType.FlattenTerrain]: Mountain,
+  [ToolType.FillWater]: Droplets,
+  [ToolType.DigChannel]: Shovel,
+  [ToolType.CreateHill]: MountainSnow,
 }
+
+const ROAD_TOOLS = [
+  { type: ToolType.Road, roadType: RoadType.Normal },
+  { type: ToolType.Highway, roadType: RoadType.Highway },
+  { type: ToolType.Bridge, roadType: RoadType.Bridge },
+  { type: ToolType.Tunnel, roadType: RoadType.Tunnel },
+]
 
 const CORE_TOOLS = [
   { type: ToolType.Select, cost: null },
-  { type: ToolType.Road, cost: BUILDING_COSTS[TileType.Road] },
   { type: ToolType.Residential, cost: BUILDING_COSTS[TileType.Residential] },
   { type: ToolType.Commercial, cost: BUILDING_COSTS[TileType.Commercial] },
   { type: ToolType.Industrial, cost: BUILDING_COSTS[TileType.Industrial] },
@@ -74,7 +105,7 @@ const TOOL_TO_DEMAND_KEY: Partial<Record<ToolType, keyof DemandIndicators>> = {
   [ToolType.Industrial]: 'industrial',
 }
 
-export type ModalType = 'milestones' | 'policy' | 'tech' | null
+export type ModalType = 'milestones' | 'policy' | 'tech' | 'production' | null
 
 interface DockToolbarProps {
   onSelectTool: (tool: ToolType) => void
@@ -90,6 +121,7 @@ const PANEL_BUTTONS: {
   { panel: 'milestones', icon: Trophy, label: '成就' },
   { panel: 'policy', icon: ScrollText, label: '政策' },
   { panel: 'tech', icon: FlaskConical, label: '科技' },
+  { panel: 'production', icon: Link, label: '产业链' },
 ]
 
 function DockIcon({
@@ -164,7 +196,15 @@ export const DockToolbar = memo(function DockToolbar({
   const money = useMoney()
   const economy = useEconomy()
   const tech = useTechState()
+  const engine = useEngine()
+  const selectedStructureTemplate = useGameSelector(
+    s => s.selectedStructureTemplate,
+    { keys: ['selectedStructureTemplate'] }
+  )
   const [facilityMenuOpen, setFacilityMenuOpen] = useState(false)
+  const [roadMenuOpen, setRoadMenuOpen] = useState(false)
+  const [terraformMenuOpen, setTerraformMenuOpen] = useState(false)
+  const [structureMenuOpen, setStructureMenuOpen] = useState(false)
 
   const demandIndicators = economy.demandIndicators
   const researchedTechs = tech.researched
@@ -183,9 +223,113 @@ export const DockToolbar = memo(function DockToolbar({
   )
 
   const isFacilityToolActive = FACILITY_TOOLS.some(f => f.type === currentTool)
+  const isRoadToolActive = isRoadTool(currentTool)
+  const isTerraformToolActive = isTerraformTool(currentTool)
+
+  const unlockedTerraformActions = useMemo(
+    () =>
+      TERRAFORM_ACTIONS.filter(
+        a => !a.unlockTech || researchedTechs.includes(a.unlockTech)
+      ),
+    [researchedTechs]
+  )
+
+  const unlockedStructures = useMemo(
+    () =>
+      STRUCTURE_TEMPLATES.filter(
+        t => !t.unlockTech || researchedTechs.includes(t.unlockTech)
+      ),
+    [researchedTechs]
+  )
 
   return (
     <div className="absolute bottom-3 left-1/2 -translate-x-1/2 z-20 flex items-end gap-1 px-3 py-2 bg-[var(--game-wood)] rounded-[var(--game-radius-lg)] border-2 border-[var(--game-wood-dark)] shadow-[0_-2px_12px_oklch(0.2_0.05_55/0.3)] animate-[slideUp_0.3s_ease-out]">
+      {/* 选择工具 */}
+      <DockIcon
+        active={currentTool === ToolType.Select}
+        icon={TOOL_ICONS[ToolType.Select] ?? MousePointer2}
+        label={TOOL_LABELS[ToolType.Select]}
+        onClick={() => onSelectTool(ToolType.Select)}
+      />
+
+      {/* 道路按钮 + 弹出菜单 */}
+      <div className="relative">
+        <DockIcon
+          active={isRoadToolActive || roadMenuOpen}
+          canAfford={money >= ROAD_CONFIGS[RoadType.Normal].buildCost}
+          cost={ROAD_CONFIGS[RoadType.Normal].buildCost}
+          icon={Route}
+          label="道路"
+          onClick={() => setRoadMenuOpen(prev => !prev)}
+        />
+        {roadMenuOpen && (
+          <>
+            {/* 透明遮罩 - 点击外部关闭 */}
+            <div
+              className="fixed inset-0 z-10"
+              onClick={() => setRoadMenuOpen(false)}
+              onKeyDown={() => {}}
+              role="presentation"
+            />
+            {/* 弹出菜单 */}
+            <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 z-20 flex flex-col gap-1 p-2 bg-[var(--game-parchment)] border-2 border-[var(--game-wood)] rounded-[var(--game-radius-lg)] shadow-[0_4px_16px_oklch(0.2_0.05_55/0.3)] animate-[scaleIn_0.15s_ease-out]">
+              {ROAD_TOOLS.map(({ type, roadType }) => {
+                const config = ROAD_CONFIGS[roadType]
+                const cost = config.buildCost
+                const isActive = currentTool === type
+                const canAfford = money >= cost
+                const RIcon = TOOL_ICONS[type] ?? Route
+
+                const terrainHint =
+                  config.terrainAllowances.length > 0
+                    ? `仅: ${config.terrainAllowances.join(', ')}`
+                    : config.terrainRestrictions.length > 0
+                      ? `禁: ${config.terrainRestrictions.join(', ')}`
+                      : ''
+
+                return (
+                  <button
+                    className={cn(
+                      'flex items-center gap-2 px-2 py-1.5 rounded-[var(--game-radius-sm)] text-xs transition-all border whitespace-nowrap cursor-pointer',
+                      isActive
+                        ? 'bg-[var(--game-gold)] border-[var(--game-wood-dark)] text-[var(--game-text-heading)]'
+                        : canAfford
+                          ? 'bg-[var(--game-parchment-light)] border-[var(--game-wood)]/30 text-[var(--game-text)] hover:bg-[var(--game-parchment-dark)]'
+                          : 'opacity-40 cursor-not-allowed border-[var(--game-wood)]/20 text-[var(--game-text-muted)]'
+                    )}
+                    disabled={!canAfford}
+                    key={type}
+                    onClick={() => {
+                      onSelectTool(type)
+                      setRoadMenuOpen(false)
+                    }}
+                    type="button"
+                  >
+                    <RIcon size={14} />
+                    <span>{TOOL_LABELS[type]}</span>
+                    {terrainHint && (
+                      <span className="text-[9px] text-[var(--game-text-muted)]">
+                        {terrainHint}
+                      </span>
+                    )}
+                    <span
+                      className={cn(
+                        'ml-auto text-[10px]',
+                        canAfford
+                          ? 'text-[var(--game-green)]'
+                          : 'text-[var(--game-red)]'
+                      )}
+                    >
+                      ${cost}
+                    </span>
+                  </button>
+                )
+              })}
+            </div>
+          </>
+        )}
+      </div>
+
       {/* 核心建筑工具 */}
       {CORE_TOOLS.map(({ type, cost }) => {
         const isActive = currentTool === type
@@ -228,6 +372,7 @@ export const DockToolbar = memo(function DockToolbar({
                   className="fixed inset-0 z-10"
                   onClick={() => setFacilityMenuOpen(false)}
                   onKeyDown={() => {}}
+                  role="presentation"
                 />
                 {/* 弹出菜单 */}
                 <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 z-20 flex flex-col gap-1 p-2 bg-[var(--game-parchment)] border-2 border-[var(--game-wood)] rounded-[var(--game-radius-lg)] shadow-[0_4px_16px_oklch(0.2_0.05_55/0.3)] animate-[scaleIn_0.15s_ease-out]">
@@ -269,6 +414,143 @@ export const DockToolbar = memo(function DockToolbar({
                           )}
                         >
                           ${cost}
+                        </span>
+                      </button>
+                    )
+                  })}
+                </div>
+              </>
+            )}
+          </div>
+        </>
+      )}
+
+      {/* 地形改造按钮 + 弹出菜单 */}
+      {unlockedTerraformActions.length > 0 && (
+        <>
+          <div className="w-px h-8 bg-[var(--game-wood-light)] opacity-50 mx-0.5" />
+          <div className="relative">
+            <DockIcon
+              active={isTerraformToolActive || terraformMenuOpen}
+              icon={Mountain}
+              label="地形改造"
+              onClick={() => setTerraformMenuOpen(prev => !prev)}
+            />
+            {terraformMenuOpen && (
+              <>
+                {/* 透明遮罩 - 点击外部关闭 */}
+                <div
+                  className="fixed inset-0 z-10"
+                  onClick={() => setTerraformMenuOpen(false)}
+                  onKeyDown={() => {}}
+                  role="presentation"
+                />
+                {/* 弹出菜单 */}
+                <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 z-20 flex flex-col gap-1 p-2 bg-[var(--game-parchment)] border-2 border-[var(--game-wood)] rounded-[var(--game-radius-lg)] shadow-[0_4px_16px_oklch(0.2_0.05_55/0.3)] animate-[scaleIn_0.15s_ease-out]">
+                  {unlockedTerraformActions.map(action => {
+                    const isActive = currentTool === action.tool
+                    const canAfford = money >= action.cost
+                    const TIcon = TOOL_ICONS[action.tool] ?? Mountain
+
+                    return (
+                      <button
+                        className={cn(
+                          'flex items-center gap-2 px-2 py-1.5 rounded-[var(--game-radius-sm)] text-xs transition-all border whitespace-nowrap cursor-pointer',
+                          isActive
+                            ? 'bg-[var(--game-gold)] border-[var(--game-wood-dark)] text-[var(--game-text-heading)]'
+                            : canAfford
+                              ? 'bg-[var(--game-parchment-light)] border-[var(--game-wood)]/30 text-[var(--game-text)] hover:bg-[var(--game-parchment-dark)]'
+                              : 'opacity-40 cursor-not-allowed border-[var(--game-wood)]/20 text-[var(--game-text-muted)]'
+                        )}
+                        disabled={!canAfford}
+                        key={action.tool}
+                        onClick={() => {
+                          onSelectTool(action.tool)
+                          setTerraformMenuOpen(false)
+                        }}
+                        type="button"
+                      >
+                        <TIcon size={14} />
+                        <span>{action.name}</span>
+                        <span
+                          className={cn(
+                            'ml-auto text-[10px]',
+                            canAfford
+                              ? 'text-[var(--game-green)]'
+                              : 'text-[var(--game-red)]'
+                          )}
+                        >
+                          ${action.cost}
+                        </span>
+                      </button>
+                    )
+                  })}
+                </div>
+              </>
+            )}
+          </div>
+        </>
+      )}
+
+      {/* 大型建筑按钮 + 弹出菜单 */}
+      {unlockedStructures.length > 0 && (
+        <>
+          <div className="w-px h-8 bg-[var(--game-wood-light)] opacity-50 mx-0.5" />
+          <div className="relative">
+            <DockIcon
+              active={!!selectedStructureTemplate || structureMenuOpen}
+              icon={Building2}
+              label="大型建筑"
+              onClick={() => setStructureMenuOpen(prev => !prev)}
+            />
+            {structureMenuOpen && (
+              <>
+                <div
+                  className="fixed inset-0 z-10"
+                  onClick={() => setStructureMenuOpen(false)}
+                  onKeyDown={() => {}}
+                  role="presentation"
+                />
+                <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 z-20 flex flex-col gap-1 p-2 bg-[var(--game-parchment)] border-2 border-[var(--game-wood)] rounded-[var(--game-radius-lg)] shadow-[0_4px_16px_oklch(0.2_0.05_55/0.3)] animate-[scaleIn_0.15s_ease-out]">
+                  {unlockedStructures.map(template => {
+                    const isActive = selectedStructureTemplate === template.id
+                    const canAfford = money >= template.buildCost
+                    const footprintSize = `${Math.max(...template.footprint.map(f => f.dx)) + 1}x${Math.max(...template.footprint.map(f => f.dy)) + 1}`
+
+                    return (
+                      <button
+                        className={cn(
+                          'flex items-center gap-2 px-2 py-1.5 rounded-[var(--game-radius-sm)] text-xs transition-all border whitespace-nowrap cursor-pointer',
+                          isActive
+                            ? 'bg-[var(--game-gold)] border-[var(--game-wood-dark)] text-[var(--game-text-heading)]'
+                            : canAfford
+                              ? 'bg-[var(--game-parchment-light)] border-[var(--game-wood)]/30 text-[var(--game-text)] hover:bg-[var(--game-parchment-dark)]'
+                              : 'opacity-40 cursor-not-allowed border-[var(--game-wood)]/20 text-[var(--game-text-muted)]'
+                        )}
+                        disabled={!canAfford}
+                        key={template.id}
+                        onClick={() => {
+                          engine.setSelectedStructureTemplate(
+                            isActive ? null : template.id
+                          )
+                          setStructureMenuOpen(false)
+                        }}
+                        type="button"
+                      >
+                        <Building2 size={14} />
+                        <span>{template.name}</span>
+                        <span className="text-[9px] text-[var(--game-text-muted)]">
+                          {footprintSize}
+                        </span>
+                        <span
+                          className={cn(
+                            'ml-auto text-[10px]',
+                            canAfford
+                              ? 'text-[var(--game-green)]'
+                              : 'text-[var(--game-red)]'
+                          )}
+                        >
+                          ${template.buildCost}
                         </span>
                       </button>
                     )

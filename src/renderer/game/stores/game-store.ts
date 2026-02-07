@@ -24,6 +24,7 @@ const SYNC_KEYS: StateKey[] = [
   'economy',
   'hoveredTile',
   'currentTool',
+  'selectedStructureTemplate',
   'money',
   'time',
   'events',
@@ -36,6 +37,8 @@ const SYNC_KEYS: StateKey[] = [
   'challenge',
   'populationFloat',
   'mapSeed',
+  'structures',
+  'productionChains',
   '_derived',
 ]
 

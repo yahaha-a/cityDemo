@@ -14,9 +14,15 @@ const TERRAIN_TOP_Y: Record<TerrainType, number> = {
   [TerrainType.Rocky]: 0.1,
 }
 
+const MAX_FOOTPRINT = 16
+
+const dummy = new THREE.Object3D()
+
 export function HoverIndicator() {
+  // 单格指示器
   const meshRef = useRef<THREE.Mesh>(null)
-  // 缓存上次赋值的 material 引用，避免每帧重复赋值触发 shader binding
+  // 多格指示器
+  const instancedRef = useRef<THREE.InstancedMesh>(null)
   const prevMaterialRef = useRef<THREE.Material | null>(null)
 
   const validMaterial = useMemo(
@@ -41,6 +47,9 @@ export function HoverIndicator() {
     []
   )
 
+  const validColor = useMemo(() => new THREE.Color(0x00ff00), [])
+  const invalidColor = useMemo(() => new THREE.Color(0xff0000), [])
+
   const geometry = useMemo(() => new THREE.PlaneGeometry(1, 1), [])
 
   useFrame(() => {
@@ -48,21 +57,69 @@ export function HoverIndicator() {
     if (!state || !engine) return
 
     const mesh = meshRef.current
+    const instanced = instancedRef.current
     if (!mesh) return
 
     const { hoveredTile, currentTool } = state
 
     if (!hoveredTile) {
       mesh.visible = false
+      if (instanced) instanced.visible = false
       return
     }
 
     const { x, y } = hoveredTile
     if (x < 0 || x >= MAP_WIDTH || y < 0 || y >= MAP_HEIGHT) {
       mesh.visible = false
+      if (instanced) instanced.visible = false
       return
     }
 
+    // 检查是否有选中的多格建筑模板
+    const selectedTemplate = state.selectedStructureTemplate
+    if (selectedTemplate && instanced) {
+      // 多格建筑模式 — 使用 InstancedMesh 显示所有足迹格
+      mesh.visible = false
+      instanced.visible = true
+
+      const ge = engine as import('../engine/game-engine').GameEngine
+      const preview = ge.structureSystem.getPreviewFootprint(
+        selectedTemplate,
+        x,
+        y
+      )
+
+      let idx = 0
+      for (const cell of preview) {
+        if (idx >= MAX_FOOTPRINT) break
+        const worldX = cell.x - MAP_WIDTH / 2 + 0.5
+        const worldZ = cell.y - MAP_HEIGHT / 2 + 0.5
+        const terrain =
+          cell.x >= 0 &&
+          cell.x < MAP_WIDTH &&
+          cell.y >= 0 &&
+          cell.y < MAP_HEIGHT
+            ? state.map.tiles[cell.y][cell.x].terrain
+            : TerrainType.Plain
+        const hoverY = (TERRAIN_TOP_Y[terrain] ?? 0.05) + 0.01
+
+        dummy.position.set(worldX, hoverY, worldZ)
+        dummy.rotation.set(-Math.PI / 2, 0, 0)
+        dummy.scale.set(1, 1, 1)
+        dummy.updateMatrix()
+        instanced.setMatrixAt(idx, dummy.matrix)
+        instanced.setColorAt(idx, cell.valid ? validColor : invalidColor)
+        idx++
+      }
+
+      instanced.count = idx
+      instanced.instanceMatrix.needsUpdate = true
+      if (instanced.instanceColor) instanced.instanceColor.needsUpdate = true
+      return
+    }
+
+    // 单格模式
+    if (instanced) instanced.visible = false
     mesh.visible = true
     const worldX = x - MAP_WIDTH / 2 + 0.5
     const worldZ = y - MAP_HEIGHT / 2 + 0.5
@@ -83,11 +140,19 @@ export function HoverIndicator() {
   })
 
   return (
-    <mesh
-      geometry={geometry}
-      material={validMaterial}
-      ref={meshRef}
-      rotation={[-Math.PI / 2, 0, 0]}
-    />
+    <group>
+      <mesh
+        geometry={geometry}
+        material={validMaterial}
+        ref={meshRef}
+        rotation={[-Math.PI / 2, 0, 0]}
+      />
+      <instancedMesh
+        args={[geometry, validMaterial, MAX_FOOTPRINT]}
+        frustumCulled={false}
+        ref={instancedRef}
+        visible={false}
+      />
+    </group>
   )
 }

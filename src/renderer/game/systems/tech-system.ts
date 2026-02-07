@@ -4,6 +4,7 @@ import type { IGameSystem, SystemRegistry } from '../engine/system-registry'
 import { TECH_TREE } from '../config'
 import type { PolicySystem } from './policy-system'
 import type { SynergySystem } from './synergy-system'
+import type { SpecializationSystem } from './specialization-system'
 
 /**
  * 科技树系统 - 研究点生成和科技解锁
@@ -13,6 +14,7 @@ export class TechSystem implements IGameSystem {
   private stateManager: GameStateManager
   private policySystem!: PolicySystem
   private synergySystem!: SynergySystem
+  private specializationSystem!: SpecializationSystem
 
   constructor(
     stateManager: GameStateManager,
@@ -27,6 +29,8 @@ export class TechSystem implements IGameSystem {
   init(registry: SystemRegistry): void {
     this.policySystem = registry.get<PolicySystem>('policy')
     this.synergySystem = registry.get<SynergySystem>('synergy')
+    this.specializationSystem =
+      registry.get<SpecializationSystem>('specialization')
   }
 
   processDailyTick(): void {
@@ -142,11 +146,8 @@ export class TechSystem implements IGameSystem {
     }
 
     // 特色乘数
-    const specMult = 1
-    if (state.specialization.chosen) {
-      // 从 specialization effects 获取 research_multiplier
-      // 在经济系统中聚合处理
-    }
+    const specMult =
+      this.specializationSystem.getEffectValue('research_multiplier') ?? 1
 
     return Math.floor((popRP + schoolRP) * policyMult * techMult * specMult)
   }

@@ -8,7 +8,14 @@ import {
   MAX_BUILDING_LEVEL,
 } from '../config'
 import { TileType, TerrainType } from 'shared/types'
-import { useHoveredTile, useMap, useEconomy } from '../hooks/use-game-selector'
+import {
+  useHoveredTile,
+  useMap,
+  useEconomy,
+  useGameSelector,
+} from '../hooks/use-game-selector'
+import { ROAD_CONFIGS } from '../config/road'
+import { getStructureTemplate } from '../config/structures'
 
 function terrainEffectText(terrain: TerrainType): string | null {
   switch (terrain) {
@@ -30,6 +37,9 @@ export function TileTooltip() {
   const hoveredTile = useHoveredTile()
   const map = useMap()
   const economy = useEconomy()
+  const structures = useGameSelector(s => s.structures, {
+    keys: ['structures'],
+  })
 
   const handleMouseMove = useCallback((e: MouseEvent) => {
     const el = tooltipRef.current
@@ -61,6 +71,25 @@ export function TileTooltip() {
         ({hoveredTile.x}, {hoveredTile.y})
       </div>
       <div>类型: {TILE_LABELS[tileData.type]}</div>
+      {tileData.structureId &&
+        (() => {
+          const inst = structures.instances[tileData.structureId]
+          const tmpl = inst ? getStructureTemplate(inst.templateId) : undefined
+          return tmpl ? (
+            <div className="text-[var(--game-gold)]">
+              建筑: {tmpl.name}{' '}
+              <span className="text-[var(--game-text-muted)] text-[10px]">
+                ({Math.max(...tmpl.footprint.map(f => f.dx)) + 1}x
+                {Math.max(...tmpl.footprint.map(f => f.dy)) + 1})
+              </span>
+            </div>
+          ) : null
+        })()}
+      {tileData.type === TileType.Road && tileData.roadType && (
+        <div className="text-[var(--game-text-muted)]">
+          道路: {ROAD_CONFIGS[tileData.roadType].name}
+        </div>
+      )}
       <div className="text-[var(--game-text-muted)]">
         地形: {TERRAIN_LABELS[tileData.terrain]}
       </div>

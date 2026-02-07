@@ -6,6 +6,9 @@ import type {
   TileType,
   ToolType,
   TimeSpeed,
+  RoadType,
+  TerrainType,
+  StructureInstance,
 } from 'shared/types'
 import { CAMERA_MIN_ZOOM, CAMERA_MAX_ZOOM } from '../config'
 import { createInitialState, createInitialCamera } from './initial-state'
@@ -71,11 +74,30 @@ export class GameStateManager {
   /** 刷新通知 — 仅通知监听键与 dirtyKeys 有交集的订阅者 */
   private flush(): void {
     // 为 dirty 的嵌套对象创建新引用，使场景组件的引用比较能检测到变化
-    if (this.dirtyKeys.has('map')) {
-      this.state.map = { ...this.state.map }
-    }
-    if (this.dirtyKeys.has('economy')) {
-      this.state.economy = { ...this.state.economy }
+    const nestedKeys: StateKey[] = [
+      'map',
+      'economy',
+      'structures',
+      'productionChains',
+      'time',
+      'events',
+      'policies',
+      'tech',
+      'specialization',
+      'milestones',
+      'challenge',
+      'synergy',
+      'facilities',
+    ]
+    for (const key of nestedKeys) {
+      if (this.dirtyKeys.has(key)) {
+        const val = this.state[key]
+        if (val && typeof val === 'object') {
+          ;(this.state as unknown as Record<string, unknown>)[key] = {
+            ...val,
+          }
+        }
+      }
     }
 
     // 创建新引用以触发 React 重渲染
@@ -122,7 +144,15 @@ export class GameStateManager {
   setTool(tool: ToolType): void {
     if (this.state.currentTool === tool) return
     this.state.currentTool = tool
-    this.markDirty('currentTool')
+    // 切换工具时清除多格建筑选择
+    this.state.selectedStructureTemplate = null
+    this.markDirty('currentTool', 'selectedStructureTemplate')
+  }
+
+  setSelectedStructureTemplate(templateId: string | null): void {
+    if (this.state.selectedStructureTemplate === templateId) return
+    this.state.selectedStructureTemplate = templateId
+    this.markDirty('selectedStructureTemplate')
   }
 
   setHoveredTile(tile: { x: number; y: number } | null): void {
@@ -132,7 +162,13 @@ export class GameStateManager {
     this.markDirty('hoveredTile')
   }
 
-  setTileAt(x: number, y: number, type: TileType, level = 1): void {
+  setTileAt(
+    x: number,
+    y: number,
+    type: TileType,
+    level = 1,
+    roadType?: RoadType
+  ): void {
     const existing = this.state.map.tiles[y][x]
     this.state.map.tiles[y][x] = {
       type,
@@ -141,12 +177,19 @@ export class GameStateManager {
       level,
       connected: false,
       terrain: existing.terrain,
+      roadType,
     }
     this.markDirty('map')
   }
 
   /** 设置瓦片但不触发通知（用于批量操作，调用方自行包在 batch 中） */
-  setTileAtSilent(x: number, y: number, type: TileType, level = 1): void {
+  setTileAtSilent(
+    x: number,
+    y: number,
+    type: TileType,
+    level = 1,
+    roadType?: RoadType
+  ): void {
     const existing = this.state.map.tiles[y][x]
     this.state.map.tiles[y][x] = {
       type,
@@ -155,7 +198,63 @@ export class GameStateManager {
       level,
       connected: false,
       terrain: existing.terrain,
+      roadType,
     }
+  }
+
+  /** 修改地形类型（用于地形改造） */
+  setTerrainAt(
+    x: number,
+    y: number,
+    terrain: TerrainType,
+    originalTerrain?: TerrainType
+  ): void {
+    const tile = this.state.map.tiles[y][x]
+    tile.terrain = terrain
+    if (originalTerrain !== undefined) {
+      tile.originalTerrain = originalTerrain
+    } else if (!tile.originalTerrain) {
+      tile.originalTerrain = tile.terrain
+    }
+    this.markDirty('map')
+  }
+
+  /** 设置格子的结构关联 */
+  setTileStructure(
+    x: number,
+    y: number,
+    structureId: string | undefined,
+    role: 'origin' | 'part' | undefined
+  ): void {
+    const tile = this.state.map.tiles[y]?.[x]
+    if (tile) {
+      tile.structureId = structureId
+      tile.structureRole = role
+    }
+  }
+
+  /** 注册多格建筑实例 */
+  registerStructure(instance: StructureInstance): void {
+    this.state.structures.instances[instance.id] = instance
+    this.markDirty('structures')
+  }
+
+  /** 移除多格建筑实例 */
+  removeStructure(structureId: string): void {
+    // 清理 tileToStructure 反向索引
+    const structs = this.state.structures
+    for (const [key, sid] of Object.entries(structs.tileToStructure)) {
+      if (sid === structureId) {
+        delete structs.tileToStructure[key]
+      }
+    }
+    delete structs.instances[structureId]
+    this.markDirty('structures')
+  }
+
+  /** 添加 tileToStructure 映射 */
+  addTileToStructure(x: number, y: number, structureId: string): void {
+    this.state.structures.tileToStructure[`${x},${y}`] = structureId
   }
 
   /** 批量更新瓦片连接状态（接受坐标数组，避免字符串解析） */
@@ -229,6 +328,11 @@ export class GameStateManager {
 
   resetCamera(): void {
     this.state.camera = createInitialCamera()
+  }
+
+  /** 更新 tick 累加器（每帧调用，静默更新不触发通知） */
+  setTickAccumulator(value: number): void {
+    this.state.time.tickAccumulator = value
   }
 
   // 时间控制方法

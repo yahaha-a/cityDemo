@@ -13,6 +13,8 @@ import {
   type ChallengeState,
   type TechState,
   type SpecializationState,
+  type StructureRegistry,
+  type ProductionChainState,
   TileType,
   TerrainType,
   ToolType,
@@ -176,6 +178,19 @@ function createInitialSpecialization(): SpecializationState {
   }
 }
 
+function createInitialStructures(): StructureRegistry {
+  return {
+    instances: {},
+    tileToStructure: {},
+  }
+}
+
+function createInitialProductionChains(): ProductionChainState {
+  return {
+    activeChains: {},
+  }
+}
+
 export function createInitialState(): GameState {
   const mapSeed = Date.now()
   return {
@@ -183,6 +198,7 @@ export function createInitialState(): GameState {
     money: INITIAL_MONEY,
     currentTool: ToolType.Select,
     hoveredTile: null,
+    selectedStructureTemplate: null,
     camera: createInitialCamera(),
     time: createInitialTime(),
     economy: createInitialEconomy(),
@@ -196,6 +212,8 @@ export function createInitialState(): GameState {
     challenge: createInitialChallenge(),
     tech: createInitialTech(),
     specialization: createInitialSpecialization(),
+    structures: createInitialStructures(),
+    productionChains: createInitialProductionChains(),
     _derived: { mapStats: null },
   }
 }

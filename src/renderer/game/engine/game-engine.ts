@@ -15,6 +15,8 @@ import { CrisisSystem } from '../systems/crisis-system'
 import { TechSystem } from '../systems/tech-system'
 import { SpecializationSystem } from '../systems/specialization-system'
 import { BuildingSystem } from '../systems/building-system'
+import { StructureSystem } from '../systems/structure-system'
+import { ProductionChainSystem } from '../systems/production-chain-system'
 import type { GameEngineFacade } from '../context/engine-facade'
 
 /**
@@ -40,6 +42,8 @@ export class GameEngine implements GameEngineFacade {
   private readonly crisisSystem: CrisisSystem
   private readonly techSystem: TechSystem
   private readonly specializationSystem: SpecializationSystem
+  readonly structureSystem: StructureSystem
+  private readonly productionChainSystem: ProductionChainSystem
 
   constructor() {
     const sm = new GameStateManager()
@@ -61,6 +65,8 @@ export class GameEngine implements GameEngineFacade {
     this.economySystem = new EconomySystem(sm)
     this.milestoneSystem = new MilestoneSystem(sm)
     this.buildingSystem = new BuildingSystem(sm)
+    this.structureSystem = new StructureSystem(sm)
+    this.productionChainSystem = new ProductionChainSystem(sm)
 
     // 注册到注册表
     registry.register(this.roadSystem)
@@ -76,6 +82,8 @@ export class GameEngine implements GameEngineFacade {
     registry.register(this.economySystem)
     registry.register(this.milestoneSystem)
     registry.register(this.buildingSystem)
+    registry.register(this.structureSystem)
+    registry.register(this.productionChainSystem)
 
     // 定义每日处理顺序
     registry.setTickOrder([
@@ -83,6 +91,8 @@ export class GameEngine implements GameEngineFacade {
       'policy',
       'facility',
       'synergy',
+      'structure',
+      'production',
       'tech',
       'crisis',
       'economy',
@@ -111,6 +121,9 @@ export class GameEngine implements GameEngineFacade {
   }
   resetGame(): void {
     this.stateManager.resetGame()
+  }
+  setSelectedStructureTemplate(templateId: string | null): void {
+    this.stateManager.setSelectedStructureTemplate(templateId)
   }
 
   // === Facade: 政策系统 ===

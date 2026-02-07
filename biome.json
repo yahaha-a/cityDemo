@@ -33,6 +33,7 @@
     "enabled": true,
     "rules": {
       "a11y": {
+        "noStaticElementInteractions": "off",
         "noSvgWithoutTitle": "off",
         "useButtonType": "off"
       },

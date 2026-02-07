@@ -32,7 +32,7 @@ const dummy = new THREE.Object3D()
 
 export function TerrainGrid() {
   const meshRefs = useRef<Record<string, THREE.InstancedMesh | null>>({})
-  // 脏标记：地形在游戏过程中不变，只需在首次或加载存档时计算
+  // 脏标记：地形在地形改造时也会变化，通过 map 引用比较检测
   const prevMapRef = useRef<unknown>(null)
 
   // 为每种地形创建材质

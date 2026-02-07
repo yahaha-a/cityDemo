@@ -51,7 +51,11 @@ export class SystemRegistry {
   tickAll(): void {
     for (const id of this.tickOrder) {
       const system = this.systems.get(id)
-      system?.processDailyTick?.()
+      try {
+        system?.processDailyTick?.()
+      } catch (err) {
+        console.error(`[SystemRegistry] System "${id}" tick failed:`, err)
+      }
     }
   }
 
@@ -59,7 +63,14 @@ export class SystemRegistry {
   disposeAll(): void {
     const entries = [...this.systems.values()].reverse()
     for (const system of entries) {
-      system.dispose?.()
+      try {
+        system.dispose?.()
+      } catch (err) {
+        console.error(
+          `[SystemRegistry] System "${system.id}" dispose failed:`,
+          err
+        )
+      }
     }
   }
 }

@@ -256,6 +256,19 @@ export class SaveSystem implements IGameSystem {
       }
     }
 
+    if (gs.structures === undefined) {
+      gs.structures = {
+        instances: {},
+        tileToStructure: {},
+      }
+    }
+
+    if (gs.productionChains === undefined) {
+      gs.productionChains = {
+        activeChains: {},
+      }
+    }
+
     saveData.version = SAVE_VERSION
     console.log('[SaveSystem] Migrated save data to', SAVE_VERSION)
     return saveData
@@ -299,6 +312,10 @@ export class SaveSystem implements IGameSystem {
     const fullState: GameState = {
       ...saveData.gameState,
       hoveredTile: null,
+      selectedStructureTemplate: null,
+      productionChains: saveData.gameState.productionChains ?? {
+        activeChains: {},
+      },
       _derived: { mapStats: null },
     }
     this.stateManager.loadState(fullState)

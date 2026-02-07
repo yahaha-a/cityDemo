@@ -14,6 +14,7 @@ import { MilestonePanel } from './milestone-panel'
 import { EventToast } from './event-toast'
 import { PolicyPanel } from './policy-panel'
 import { TechPanel } from './tech-panel'
+import { ProductionPanel } from './production-panel'
 import { CrisisDialog } from './crisis-dialog'
 import { SpecializationPanel } from './specialization-panel'
 import {
@@ -88,10 +89,15 @@ function GameUI({ onReturnToStart }: { onReturnToStart?: () => void }) {
       {/* 弹窗面板 */}
       {activeModal && (
         <ModalOverlay onClick={() => setActiveModal(null)}>
-          <div onClick={e => e.stopPropagation()} onKeyDown={() => {}}>
+          <div
+            onClick={e => e.stopPropagation()}
+            onKeyDown={() => {}}
+            role="presentation"
+          >
             {activeModal === 'milestones' && <MilestonePanel />}
             {activeModal === 'policy' && <PolicyPanel />}
             {activeModal === 'tech' && <TechPanel dailyRP={tech.dailyRP} />}
+            {activeModal === 'production' && <ProductionPanel />}
           </div>
         </ModalOverlay>
       )}
