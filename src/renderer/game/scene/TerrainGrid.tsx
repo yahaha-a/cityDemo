@@ -1,6 +1,5 @@
-import { useRef, useMemo } from 'react'
+import { useRef, useMemo, useEffect, useCallback } from 'react'
 import * as THREE from 'three'
-import { useFrame } from '@react-three/fiber'
 import { TerrainType } from 'shared/types'
 import { TERRAIN_COLORS, MAP_WIDTH, MAP_HEIGHT } from '../config'
 import { useGameStore } from '../stores/game-store'
@@ -57,8 +56,8 @@ export function TerrainGrid() {
     []
   )
 
-  // 仅在 map 引用变化时更新实例矩阵（地形不变，仅初始化和存档加载触发）
-  useFrame(() => {
+  // 地形更新逻辑：事件驱动，仅在 mount 和存档加载时执行
+  const updateTerrain = useCallback(() => {
     const state = useGameStore.getState().state
     if (!state) return
 
@@ -118,7 +117,17 @@ export function TerrainGrid() {
         mesh.instanceMatrix.needsUpdate = true
       }
     }
-  })
+  }, [])
+
+  useEffect(() => {
+    // 延迟一帧确保 mesh ref 已挂载
+    const raf = requestAnimationFrame(() => updateTerrain())
+    const unsub = useGameStore.subscribe(() => updateTerrain())
+    return () => {
+      cancelAnimationFrame(raf)
+      unsub()
+    }
+  }, [updateTerrain])
 
   const maxCount = MAP_WIDTH * MAP_HEIGHT
 

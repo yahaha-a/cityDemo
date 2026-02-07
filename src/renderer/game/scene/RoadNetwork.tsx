@@ -8,6 +8,15 @@ import { useGameStore } from '../stores/game-store'
 const dummy = new THREE.Object3D()
 const ROAD_HEIGHT = 0.02
 
+// 地形高度偏移（与 TerrainGrid / Buildings 保持一致）
+const TERRAIN_Y_MAP: Record<string, number> = {
+  plain: 0,
+  hill: 0.15,
+  water: -0.08,
+  fertile: 0,
+  rocky: 0.05,
+}
+
 export function RoadNetwork() {
   const meshRef = useRef<THREE.InstancedMesh>(null)
   // 脏标记：道路只在建造/拆除时变化
@@ -50,8 +59,9 @@ export function RoadNetwork() {
 
         const worldX = x - MAP_WIDTH / 2 + 0.5
         const worldZ = y - MAP_HEIGHT / 2 + 0.5
+        const terrainY = TERRAIN_Y_MAP[tile.terrain] ?? 0
 
-        dummy.position.set(worldX, 0.06, worldZ)
+        dummy.position.set(worldX, terrainY + 0.06, worldZ)
         dummy.updateMatrix()
         mesh.setMatrixAt(count, dummy.matrix)
         count++
@@ -62,11 +72,9 @@ export function RoadNetwork() {
     mesh.instanceMatrix.needsUpdate = true
   })
 
-  const maxCount = MAP_WIDTH * MAP_HEIGHT
-
   return (
     <instancedMesh
-      args={[geometry, material, maxCount]}
+      args={[geometry, material, 1024]}
       frustumCulled={false}
       receiveShadow
       ref={meshRef}

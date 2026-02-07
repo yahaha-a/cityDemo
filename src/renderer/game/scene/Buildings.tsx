@@ -27,6 +27,13 @@ const BUILDING_TYPES = [
   TileType.PowerPlant,
 ] as const
 
+// 受效率影响的核心建筑类型
+const CORE_BUILDING_TYPES = [
+  TileType.Residential,
+  TileType.Commercial,
+  TileType.Industrial,
+] as const
+
 // 地形高度偏移（与 TerrainGrid 保持一致）
 const TERRAIN_Y_MAP: Record<string, number> = {
   plain: 0,
@@ -36,15 +43,33 @@ const TERRAIN_Y_MAP: Record<string, number> = {
   rocky: 0.05,
 }
 
+// 每种建筑类型的最大实例分配量
+const MAX_COUNTS: Partial<Record<TileType, number>> = {
+  [TileType.Residential]: 1024,
+  [TileType.Commercial]: 1024,
+  [TileType.Industrial]: 1024,
+  [TileType.Park]: 256,
+  [TileType.School]: 256,
+  [TileType.Hospital]: 256,
+  [TileType.FireStation]: 256,
+  [TileType.PoliceStation]: 256,
+  [TileType.PowerPlant]: 256,
+}
+
 const dummy = new THREE.Object3D()
 // 复用单个 Color 实例，避免每帧大量 GC
 const tmpColor = new THREE.Color()
 
 export function Buildings() {
   const meshRefs = useRef<Record<string, THREE.InstancedMesh | null>>({})
-  // 脏标记：记录上次处理时的 map 和 efficiencyByType 引用
+  // 脏标记：记录上次处理时的 map 引用和效率实际值
   const prevMapRef = useRef<unknown>(null)
-  const prevEffRef = useRef<unknown>(null)
+  const prevEffValues = useRef({ residential: 1, commercial: 1, industrial: 1 })
+  // 缓存 per-tile 的 instance 索引映射：tileKey → { type, idx }
+  // 用于 efficiency-only 更新时快速定位需要更新颜色的实例
+  const instanceIndexMap = useRef<
+    Map<string, { type: TileType; idx: number; connected: boolean }>
+  >(new Map())
 
   // 为每种建筑类型创建材质
   const materials = useMemo(() => {
@@ -73,38 +98,66 @@ export function Buildings() {
 
     const { map, economy } = state
     const effByType = economy.efficiencyByType
+    const mapChanged = map !== prevMapRef.current
 
-    // 引用比较：如果 map 和 economy.efficiencyByType 都没变，跳过本帧
-    if (map === prevMapRef.current && effByType === prevEffRef.current) return
+    // 值比较：检查 3 个效率值是否实际变化
+    const effChanged =
+      effByType.residential !== prevEffValues.current.residential ||
+      effByType.commercial !== prevEffValues.current.commercial ||
+      effByType.industrial !== prevEffValues.current.industrial
+
+    if (!mapChanged && !effChanged) return
     prevMapRef.current = map
-    prevEffRef.current = effByType
+    if (effChanged) {
+      prevEffValues.current = {
+        residential: effByType.residential,
+        commercial: effByType.commercial,
+        industrial: effByType.industrial,
+      }
+    }
 
-    // 单次遍历：同时统计数量和设置矩阵
-    const counts: Record<string, number> = {}
-    for (const t of BUILDING_TYPES) counts[t] = 0
+    // 分离更新路径：仅 efficiency 变化时只更新核心建筑颜色
+    if (!mapChanged && effChanged) {
+      for (const [, entry] of instanceIndexMap.current) {
+        if (!isCoreBuilding(entry.type)) continue
+        const mesh = meshRefs.current[entry.type]
+        if (!mesh) continue
 
-    // 第一遍先统计数量（必须先知道 count 才能正确设置 mesh.count）
-    for (let y = 0; y < map.height; y++) {
-      for (let x = 0; x < map.width; x++) {
-        const tile = map.tiles[y][x]
-        if (isBuilding(tile.type) && tile.type in counts) {
-          counts[tile.type]++
+        tmpColor.set(TILE_COLORS[entry.type].top)
+        if (!entry.connected) {
+          tmpColor.multiplyScalar(0.4)
+        } else {
+          const eff =
+            entry.type === TileType.Residential
+              ? effByType.residential
+              : entry.type === TileType.Commercial
+                ? effByType.commercial
+                : effByType.industrial
+          if (eff < 1) {
+            const gray = (tmpColor.r + tmpColor.g + tmpColor.b) / 3
+            const factor = (1 - eff) * 0.6
+            tmpColor.r = tmpColor.r * (1 - factor) + gray * factor
+            tmpColor.g = tmpColor.g * (1 - factor) + gray * factor
+            tmpColor.b = tmpColor.b * (1 - factor) + gray * factor
+          }
+        }
+        mesh.setColorAt(entry.idx, tmpColor)
+      }
+      // 仅标记核心建筑类型的颜色更新
+      for (const t of CORE_BUILDING_TYPES) {
+        const mesh = meshRefs.current[t]
+        if (mesh?.instanceColor) {
+          mesh.instanceColor.needsUpdate = true
         }
       }
+      return
     }
 
-    // 设置 count 并重置索引
-    for (const t of BUILDING_TYPES) {
-      const mesh = meshRefs.current[t]
-      if (mesh && mesh.count !== counts[t]) {
-        mesh.count = counts[t]
-      }
-    }
-
+    // map 变化 → 全量更新（矩阵 + 颜色），并重建索引映射
+    instanceIndexMap.current.clear()
     const indices: Record<string, number> = {}
     for (const t of BUILDING_TYPES) indices[t] = 0
 
-    // 第二遍：设置矩阵和颜色（复用 tmpColor）
     for (let y = 0; y < map.height; y++) {
       for (let x = 0; x < map.width; x++) {
         const tile = map.tiles[y][x]
@@ -150,26 +203,35 @@ export function Buildings() {
           }
         }
         mesh.setColorAt(idx, tmpColor)
+
+        // 缓存核心建筑的实例索引，供 efficiency-only 更新使用
+        if (isCoreBuilding(tile.type)) {
+          instanceIndexMap.current.set(`${x},${y}`, {
+            type: tile.type,
+            idx,
+            connected: tile.connected,
+          })
+        }
       }
     }
 
-    // 标记更新
+    // 遍历结束后设 count 并标记更新（仅有实例的 mesh 标记 needsUpdate）
     for (const t of BUILDING_TYPES) {
       const mesh = meshRefs.current[t]
-      if (mesh) {
+      if (!mesh) continue
+      mesh.count = indices[t]
+      if (indices[t] > 0) {
         mesh.instanceMatrix.needsUpdate = true
         if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true
       }
     }
   })
 
-  const maxCount = MAP_WIDTH * MAP_HEIGHT
-
   return (
     <group>
       {BUILDING_TYPES.map(t => (
         <instancedMesh
-          args={[geometry, materials[t], maxCount]}
+          args={[geometry, materials[t], MAX_COUNTS[t] ?? 256]}
           castShadow
           frustumCulled={false}
           key={t}
