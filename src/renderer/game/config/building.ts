@@ -1,4 +1,5 @@
 import { TileType, TerrainType, type BuildingCosts } from 'shared/types'
+import type { BuildingId } from 'shared/types/building-defs'
 
 /** 建筑成本 */
 export const BUILDING_COSTS: BuildingCosts = {
@@ -141,6 +142,32 @@ export const TERRAIN_COLORS: Record<
 
 /** 拆除退款比例 */
 export const DEMOLISH_REFUND_RATIO = 0.5
+
+// === 建筑颜色（新建筑系统） ===
+
+export const BUILDING_COLORS: Record<
+  BuildingId,
+  { base: string; accent: string }
+> = {
+  empty: { base: '#4ade80', accent: '#22c55e' },
+  road: { base: '#9ca3af', accent: '#6b7280' },
+  house: { base: '#60a5fa', accent: '#3b82f6' },
+  apartment: { base: '#818cf8', accent: '#6366f1' },
+  residential_complex: { base: '#a78bfa', accent: '#8b5cf6' },
+  shop: { base: '#facc15', accent: '#eab308' },
+  office: { base: '#fbbf24', accent: '#f59e0b' },
+  mall: { base: '#f59e0b', accent: '#d97706' },
+  factory: { base: '#f87171', accent: '#ef4444' },
+  heavy_industry: { base: '#fb923c', accent: '#f97316' },
+  warehouse: { base: '#d4d4d8', accent: '#a1a1aa' },
+  park: { base: '#34d399', accent: '#10b981' },
+  plaza: { base: '#fcd34d', accent: '#fbbf24' },
+  school: { base: '#c084fc', accent: '#a855f7' },
+  hospital: { base: '#f9a8d4', accent: '#f472b6' },
+  fire_station: { base: '#fb923c', accent: '#ea580c' },
+  police_station: { base: '#67e8f9', accent: '#06b6d4' },
+  power_plant: { base: '#fde047', accent: '#facc15' },
+}
 
 // === 建筑升级常量 ===
 

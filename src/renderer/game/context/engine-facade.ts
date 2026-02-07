@@ -1,4 +1,5 @@
 import type { ToolType, TimeSpeed, TileType, GameState } from 'shared/types'
+import type { BuildingId } from 'shared/types/building-defs'
 import type { GameLoop } from '../engine/game-loop'
 import type { StateKey } from '../engine/game-state'
 
@@ -19,7 +20,7 @@ export interface GameEngineFacade {
   setTool(tool: ToolType): void
   setTimeSpeed(speed: TimeSpeed): void
   resetGame(): void
-  setSelectedStructureTemplate(templateId: string | null): void
+  setSelectedBuildingId(buildingId: BuildingId | null): void
 
   // === 政策系统 ===
   togglePolicy(policyId: string): boolean

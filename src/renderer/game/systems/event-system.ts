@@ -71,6 +71,56 @@ export class EventSystem implements IGameSystem {
     return mult
   }
 
+  /** 获取活跃事件对特定危机的概率修正乘数 */
+  getCrisisModifier(crisisId: string): number {
+    const state = this.stateManager.getState()
+    let mult = 1
+    for (const event of state.events.activeEvents) {
+      const template = EVENT_TEMPLATES.find(t => t.id === event.id)
+      if (!template?.crisisModifiers) continue
+      for (const cm of template.crisisModifiers) {
+        if (cm.crisisId === crisisId) {
+          mult *= cm.multiplier
+        }
+      }
+    }
+    return mult
+  }
+
+  /** 触发指定事件（供危机后续联动调用） */
+  triggerEvent(eventId: string): void {
+    const state = this.stateManager.getState()
+    const template = EVENT_TEMPLATES.find(t => t.id === eventId)
+    if (!template) return
+
+    const events = { ...state.events }
+    // 如果该事件已经活跃，不重复触发
+    if (events.activeEvents.some(e => e.id === eventId)) return
+
+    const duration =
+      template.durationMin +
+      Math.floor(
+        Math.random() * (template.durationMax - template.durationMin + 1)
+      )
+
+    const newEvent: GameEvent = {
+      id: template.id,
+      name: template.name,
+      description: template.description,
+      durationDays: duration,
+      remainingDays: duration,
+      modifiers: [...template.modifiers],
+    }
+
+    events.activeEvents = [...events.activeEvents, newEvent]
+    events.eventHistory = [newEvent.id, ...events.eventHistory].slice(
+      0,
+      EVENT_HISTORY_SIZE
+    )
+
+    this.stateManager.update({ events })
+  }
+
   /** 里程碑解锁事件 */
   unlockEvent(eventId: string): void {
     const state = this.stateManager.getState()

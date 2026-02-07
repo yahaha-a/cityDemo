@@ -34,6 +34,10 @@ export interface CrisisTemplate {
   preventionThreshold?: number
   minDay: number
   baseProbability: number
+  /** 危机解决后触发的事件 ID */
+  postEventId?: string
+  /** 触发后续事件的概率 (0-1) */
+  postEventProbability?: number
 }
 
 export interface ActiveCrisis {

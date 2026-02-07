@@ -8,15 +8,17 @@ import {
   isRoadTool,
   isTerraformTool,
   isFacilityType,
-  isCoreBuilding,
 } from 'shared/types'
+import {
+  getTileBuildingId,
+  TILE_TYPE_TO_BUILDING_ID,
+} from 'shared/types/building-compat'
+import { getBuildingDef } from '../config/building-defs'
 import {
   BUILDING_COSTS,
   TERRAIN_BUILD_COST_MULTIPLIER,
   UPGRADE_COST_MULTIPLIER,
-  MAX_BUILDING_LEVEL,
   UPGRADE_MIN_EFFICIENCY,
-  getFacilityTemplate,
 } from '../config'
 import { ROAD_CONFIGS } from '../config/road'
 import { getTerraformAction } from '../config/terraform'
@@ -56,6 +58,31 @@ export class BuildQuery {
         : 'invalid'
     }
 
+    // 检查 selectedBuildingId
+    const selectedBuildingId = state.selectedBuildingId
+    if (selectedBuildingId) {
+      const def = getBuildingDef(selectedBuildingId)
+      if (def) {
+        const terrainMult = TERRAIN_BUILD_COST_MULTIPLIER[tile.terrain]
+        const cost = Number.isFinite(terrainMult)
+          ? Math.ceil(def.cost * terrainMult)
+          : null
+        const isUnlocked =
+          def.unlockCondition.type === 'initial' ||
+          (def.unlockCondition.type === 'tech' &&
+            state.tech.researched.includes(def.unlockCondition.id!)) ||
+          (def.unlockCondition.type === 'milestone' &&
+            state.milestones.achieved.includes(def.unlockCondition.id!))
+
+        return tile.type === TileType.Empty &&
+          cost !== null &&
+          money >= cost &&
+          isUnlocked
+          ? 'valid'
+          : 'invalid'
+      }
+    }
+
     const targetType = toolToTileType[currentTool]
     if (!targetType) return 'valid'
 
@@ -74,8 +101,13 @@ export class BuildQuery {
   }
 
   private canUpgradeTile(tile: Tile, state: GameState): boolean {
-    if (!isCoreBuilding(tile.type)) return false
-    if (tile.level >= MAX_BUILDING_LEVEL) return false
+    const bid = getTileBuildingId(tile)
+    if (bid === 'empty' || bid === 'road') return false
+
+    const def = getBuildingDef(bid)
+    if (!def) return false
+
+    if (tile.level >= def.maxLevel) return false
     if (tile.level === 2 && !state.milestones.upgradeLv3Unlocked) return false
     if (!tile.connected) return false
 
@@ -87,12 +119,10 @@ export class BuildQuery {
           : state.economy.efficiencyByType.industrial
     if (efficiency < UPGRADE_MIN_EFFICIENCY) return false
 
-    const baseCost = BUILDING_COSTS[tile.type as keyof typeof BUILDING_COSTS]
-    if (baseCost === undefined) return false
     const terrainMult = TERRAIN_BUILD_COST_MULTIPLIER[tile.terrain]
     const mult = Number.isFinite(terrainMult) ? terrainMult : 1
     const cost = Math.ceil(
-      baseCost * mult * UPGRADE_COST_MULTIPLIER[tile.level]
+      def.cost * mult * UPGRADE_COST_MULTIPLIER[tile.level]
     )
     return state.money >= cost
   }
@@ -103,15 +133,23 @@ export class BuildQuery {
     money: number,
     state: GameState
   ): boolean {
-    const template = getFacilityTemplate(targetType)
-    if (!template) return false
+    // 使用新建筑系统通过 TileType 查找对应建筑定义
+    const bid = TILE_TYPE_TO_BUILDING_ID[targetType]
+    if (!bid) return false
+
+    const def = getBuildingDef(bid)
+    if (!def) return false
 
     const isUnlocked =
-      !template.unlockTech ||
-      state.tech.researched.includes(template.unlockTech)
+      def.unlockCondition.type === 'initial' ||
+      (def.unlockCondition.type === 'tech' &&
+        state.tech.researched.includes(def.unlockCondition.id!)) ||
+      (def.unlockCondition.type === 'milestone' &&
+        state.milestones.achieved.includes(def.unlockCondition.id!))
+
     const terrainMult = TERRAIN_BUILD_COST_MULTIPLIER[tile.terrain]
     const cost = Number.isFinite(terrainMult)
-      ? Math.ceil(template.buildCost * terrainMult)
+      ? Math.ceil(def.cost * terrainMult)
       : null
 
     return (

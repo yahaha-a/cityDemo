@@ -4,6 +4,7 @@ import type {
   CrisisTemplate,
   ActiveCrisis,
 } from 'shared/types'
+import { getTileBuildingId } from 'shared/types/building-compat'
 import type { GameStateManager } from '../engine/game-state'
 import type { IGameSystem, SystemRegistry } from '../engine/system-registry'
 import {
@@ -19,7 +20,9 @@ import {
   MAP_WIDTH,
   MAP_HEIGHT,
 } from '../config'
+import { BUILDING_ID_TO_TILE_TYPE } from 'shared/types/building-compat'
 import type { PolicySystem } from './policy-system'
+import type { EventSystem } from './event-system'
 
 /**
  * 危机挑战系统 - 交互式危机事件和挑战模式
@@ -28,6 +31,7 @@ export class CrisisSystem implements IGameSystem {
   readonly id = 'crisis'
   private stateManager: GameStateManager
   private policySystem!: PolicySystem
+  private eventSystem!: EventSystem
   private crisisCooldown = CRISIS_BASE_COOLDOWN
 
   constructor(stateManager: GameStateManager, policySystem?: PolicySystem) {
@@ -37,6 +41,7 @@ export class CrisisSystem implements IGameSystem {
 
   init(registry: SystemRegistry): void {
     this.policySystem = registry.get<PolicySystem>('policy')
+    this.eventSystem = registry.get<EventSystem>('event')
   }
 
   processDailyTick(): void {
@@ -190,6 +195,15 @@ export class CrisisSystem implements IGameSystem {
       }
     }
 
+    // 危机解决后触发后续事件
+    if (
+      crisis.postEventId &&
+      crisis.postEventProbability &&
+      Math.random() < crisis.postEventProbability
+    ) {
+      this.eventSystem.triggerEvent(crisis.postEventId)
+    }
+
     challenge.pendingCrisis = null
     this.crisisCooldown =
       CRISIS_BASE_COOLDOWN +
@@ -238,9 +252,10 @@ export class CrisisSystem implements IGameSystem {
 
     if (available.length === 0) return null
 
-    // 按概率加权选择
+    // 按概率加权选择，事件修正影响危机概率
     for (const template of available) {
-      const prob = template.baseProbability * crisisFreqMult
+      const eventMod = this.eventSystem.getCrisisModifier(template.id)
+      const prob = template.baseProbability * crisisFreqMult * eventMod
       if (Math.random() < prob) return template
     }
 
@@ -261,7 +276,7 @@ export class CrisisSystem implements IGameSystem {
     }
 
     const state = this.stateManager.getState()
-    const avgResistance = state.facilities.avgCrisisResistance
+    const avgResistance = state.buildingEffects.avgCrisisResistance
     return avgResistance >= (crisis.preventionThreshold ?? 0.5)
   }
 
@@ -270,12 +285,12 @@ export class CrisisSystem implements IGameSystem {
     const { map } = state
     for (let y = 0; y < MAP_HEIGHT; y++) {
       for (let x = 0; x < MAP_WIDTH; x++) {
-        if (
-          map.tiles[y][x].type === facilityType &&
-          map.tiles[y][x].connected
-        ) {
-          return true
-        }
+        const tile = map.tiles[y][x]
+        if (!tile.connected) continue
+        // 优先检查 buildingId，回退到 tile.type
+        const bid = getTileBuildingId(tile)
+        const mappedType = BUILDING_ID_TO_TILE_TYPE[bid]
+        if (mappedType === facilityType) return true
       }
     }
     return false

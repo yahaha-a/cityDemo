@@ -7,14 +7,12 @@ import {
   type EconomyState,
   type EventState,
   type MilestoneState,
-  type SynergyState,
-  type FacilityCoverageState,
   type PolicyState,
   type ChallengeState,
   type TechState,
   type SpecializationState,
   type StructureRegistry,
-  type ProductionChainState,
+  type BuildingEffectState,
   TileType,
   TerrainType,
   ToolType,
@@ -46,6 +44,7 @@ function createEmptyMap(seed: number): GameMap {
       const terrain = terrainFromNoise(noise[y][x])
       tiles[y][x] = {
         type: TileType.Empty,
+        buildingId: 'empty',
         x,
         y,
         level: 0,
@@ -118,24 +117,6 @@ function createInitialMilestones(): MilestoneState {
   }
 }
 
-function createInitialSynergy(): SynergyState {
-  return {
-    tileEffects: {},
-    globalSatisfactionMod: 0,
-    incomeMultByType: { residential: 1, commercial: 1, industrial: 1 },
-    effMultByType: { residential: 1, commercial: 1, industrial: 1 },
-  }
-}
-
-function createInitialFacilities(): FacilityCoverageState {
-  return {
-    coverage: {},
-    totalMaintenance: 0,
-    totalResearchPoints: 0,
-    avgCrisisResistance: 0,
-  }
-}
-
 function createInitialPolicies(): PolicyState {
   return {
     activePolicies: [],
@@ -185,9 +166,36 @@ function createInitialStructures(): StructureRegistry {
   }
 }
 
-function createInitialProductionChains(): ProductionChainState {
+function createInitialBuildingEffects(): BuildingEffectState {
   return {
-    activeChains: {},
+    tileEffects: {},
+    globalSatisfactionMod: 0,
+    incomeMultByCategory: {
+      residential: 1,
+      commercial: 1,
+      industrial: 1,
+      service: 1,
+    },
+    effMultByCategory: {
+      residential: 1,
+      commercial: 1,
+      industrial: 1,
+      service: 1,
+    },
+    totalMaintenance: 0,
+    totalResearchPoints: 0,
+    avgCrisisResistance: 0,
+    resources: {
+      laborSupply: 0,
+      laborDemand: 0,
+      laborFulfillment: 1,
+      goodsSupply: 0,
+      goodsDemand: 0,
+      goodsFulfillment: 1,
+      servicesSupply: 0,
+      servicesDemand: 0,
+      servicesFulfillment: 1,
+    },
   }
 }
 
@@ -198,7 +206,7 @@ export function createInitialState(): GameState {
     money: INITIAL_MONEY,
     currentTool: ToolType.Select,
     hoveredTile: null,
-    selectedStructureTemplate: null,
+    selectedBuildingId: null,
     camera: createInitialCamera(),
     time: createInitialTime(),
     economy: createInitialEconomy(),
@@ -206,14 +214,12 @@ export function createInitialState(): GameState {
     mapSeed,
     events: createInitialEvents(),
     milestones: createInitialMilestones(),
-    synergy: createInitialSynergy(),
-    facilities: createInitialFacilities(),
     policies: createInitialPolicies(),
     challenge: createInitialChallenge(),
     tech: createInitialTech(),
     specialization: createInitialSpecialization(),
     structures: createInitialStructures(),
-    productionChains: createInitialProductionChains(),
+    buildingEffects: createInitialBuildingEffects(),
     _derived: { mapStats: null },
   }
 }

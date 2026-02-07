@@ -23,15 +23,15 @@ src/main/                  # 主进程 - 应用生命周期、窗口管理
 src/preload/               # 预加载脚本 - Context Bridge（window.App）
 src/renderer/              # 渲染进程 - React UI + 游戏引擎
   ├── game/engine/         # 核心引擎（GameEngine, SystemRegistry, GameStateManager, GameLoop）
-  ├── game/systems/        # 13 个游戏系统（实现 IGameSystem 接口）
+  ├── game/systems/        # 10 个游戏系统（实现 IGameSystem 接口）
   ├── game/scene/          # R3F 3D 场景（CityScene, TerrainGrid, Buildings, RoadNetwork 等）
   ├── game/stores/         # Zustand store（桥接 GameStateManager → R3F 组件）
   ├── game/context/        # React Context（GameEngineFacade 接口）
-  ├── game/config/         # 游戏配置常量（建筑、经济、地图、时间等）
+  ├── game/config/         # 游戏配置常量（建筑定义、协同规则、经济、科技、地图等）
   ├── game/components/     # 游戏 UI 组件（HUD、工具栏、面板、对话框）
   ├── game/hooks/          # useGameSelector（基于 useSyncExternalStore）
   └── components/ui/       # shadcn/ui 通用组件
-src/shared/types/          # 共享类型定义（core, state, economy, events 等）
+src/shared/types/          # 共享类型定义（core, state, building-defs, building-effects, economy, events 等）
 ```
 
 ## 架构概览
@@ -41,7 +41,7 @@ src/shared/types/          # 共享类型定义（core, state, economy, events �
 ```
 GameStateManager (pub/sub) ──subscribe──→ Zustand Store ──useFrame──→ R3F InstancedMesh
        ↑                                       ↑
-  13 GameSystems                          React UI (hooks)
+  10 GameSystems                          React UI (hooks)
   (daily tick)                         (useGameSelector)
        ↑
     GameLoop (rAF → 时间累积 → tickAll)
@@ -56,10 +56,19 @@ GameStateManager (pub/sub) ──subscribe──→ Zustand Store ──useFrame
 
 `GameEngine` 实现 `GameEngineFacade` 接口（`game/context/engine-facade.ts`），对外只暴露高层 API。React 通过 `useEngine()` 获取 Facade 实例。`GameEngine.stateManager` 和 `GameEngine.buildingSystem` 为 `readonly`，供 3D 输入层（`InputPlane`）直接访问。
 
+### 建筑系统架构
+
+游戏使用统一建筑系统，由两个核心系统组成：
+
+- **BuildingSystem**（`building-system.ts`）：处理所有 16 种建筑的放置、拆除、升级。支持 1x1 到 2x2 及异形占地（L形、T形、十字形）。单格建筑支持拖动连续放置，多格建筑仅点击放置。
+- **BuildingEffectSystem**（`building-effect-system.ts`）：每日 tick 中统一计算区域效果、协同效应（13 条 synergyTags 规则）、资源供需（labor/goods/services 三级级联）。计算结果写入 `buildingEffects` 状态，供 EconomySystem 等下游系统读取。
+
+建筑通过 `BuildingId` 标识（定义在 `shared/types/building-defs.ts`），配置数据在 `game/config/building-defs.ts`（`BuildingDefinition`）。Tile 上的 `buildingId` 字段为主键，旧 `type` 字段保留用于向后兼容。兼容工具函数在 `shared/types/building-compat.ts`。
+
 ### 3D 渲染层（`game/scene/`）
 
 - **CityScene**: R3F `<Canvas>` 入口，组合所有子组件
-- **TerrainGrid / Buildings / RoadNetwork**: 均使用 **InstancedMesh**，在 `useFrame` 中从 zustand store 读状态并更新实例矩阵
+- **TerrainGrid / Buildings / RoadNetwork**: 均使用 **InstancedMesh**，在 `useFrame` 中从 zustand store 读状态并更新实例矩阵。Buildings 按 BuildingId 分组，每种建筑有独特几何体（`building-geometries.ts`），多格建筑仅在 origin 格渲染
 - **InputPlane**: 不可见地面平面，通过 raycasting 将指针事件转为网格坐标，调用 `buildingSystem.tryAction()`
 - **CameraRig**: drei `MapControls`（平移/旋转/缩放）
 - **HoverIndicator**: 悬停高亮（绿=可建/红=不可建），读取 `gameLoop.hoverValidity`
@@ -75,27 +84,29 @@ GameStateManager (pub/sub) ──subscribe──→ Zustand Store ──useFrame
 4. 如需被其他系统引用，在其他系统的 `init()` 中通过 `registry.get<T>(id)` 获取
 5. 如需暴露给 UI，在 `GameEngineFacade` 接口和 `GameEngine` 中添加对应方法
 
-每日 Tick 顺序：`event → policy → facility → synergy → tech → crisis → economy → milestone`
+每日 Tick 顺序：`event → policy → buildingEffect → tech → crisis → economy → milestone`
 
 ### 添加新 3D 可视元素
 
 1. 在 `game/scene/` 创建组件，用 `useFrame` + `useGameStore.getState()` 读状态
 2. 使用 InstancedMesh 批量渲染同类对象（性能关键）
 3. 在 `CityScene.tsx` 中挂载新组件
-4. 颜色/高度常量复用 `game/config/building.ts` 中的 `TILE_COLORS` / `BUILDING_HEIGHTS`
+4. 颜色/高度常量复用 `game/config/building.ts` 中的 `BUILDING_COLORS` / `BUILDING_HEIGHTS_V2`，几何体通过 `game/scene/building-geometries.ts` 中的工厂函数生成
 
 ## 关键类型
 
 定义在 `src/shared/types/`：
 
-- **TileType**: Empty, Road, Residential, Commercial, Industrial, Park, School, Hospital, FireStation, PoliceStation, PowerPlant
-- **ToolType**: Select, Road, Residential, ..., Demolish, Upgrade
+- **BuildingId**: empty, road, house, apartment, residential_complex, shop, office, mall, factory, heavy_industry, warehouse, park, plaza, school, hospital, fire_station, police_station, power_plant
+- **BuildingCategory**: residential, commercial, industrial, service
+- **TileType**: Empty, Road, Residential, Commercial, Industrial, Park, School, Hospital, FireStation, PoliceStation, PowerPlant（保留用于向后兼容）
+- **ToolType**: Select, Road, Build, Demolish, Upgrade, Terraform
 - **TimeSpeed**: Paused(0), Normal(1), Fast(2), Ultra(3)
-- **GameState**: 完整游戏状态（map, money, time, economy, events, policies, tech 等）
+- **GameState**: 完整游戏状态（map, money, time, economy, buildingEffects, events, policies, tech, challenge, specialization, milestones 等）
 
 ## 现有游戏系统
 
-building, road, economy, event, map, save, synergy, facility, policy, crisis, tech, specialization, milestone
+building, buildingEffect, road, economy, event, map, save, policy, crisis, tech, specialization, milestone
 
 ## UI
 

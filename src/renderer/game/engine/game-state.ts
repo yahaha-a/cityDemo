@@ -10,6 +10,11 @@ import type {
   TerrainType,
   StructureInstance,
 } from 'shared/types'
+import type { BuildingId } from 'shared/types/building-defs'
+import {
+  BUILDING_ID_TO_TILE_TYPE,
+  TILE_TYPE_TO_BUILDING_ID,
+} from 'shared/types/building-compat'
 import { CAMERA_MIN_ZOOM, CAMERA_MAX_ZOOM } from '../config'
 import { createInitialState, createInitialCamera } from './initial-state'
 
@@ -78,7 +83,6 @@ export class GameStateManager {
       'map',
       'economy',
       'structures',
-      'productionChains',
       'time',
       'events',
       'policies',
@@ -86,8 +90,7 @@ export class GameStateManager {
       'specialization',
       'milestones',
       'challenge',
-      'synergy',
-      'facilities',
+      'buildingEffects',
     ]
     for (const key of nestedKeys) {
       if (this.dirtyKeys.has(key)) {
@@ -144,15 +147,15 @@ export class GameStateManager {
   setTool(tool: ToolType): void {
     if (this.state.currentTool === tool) return
     this.state.currentTool = tool
-    // 切换工具时清除多格建筑选择
-    this.state.selectedStructureTemplate = null
-    this.markDirty('currentTool', 'selectedStructureTemplate')
+    // 切换工具时清除建筑选择
+    this.state.selectedBuildingId = null
+    this.markDirty('currentTool', 'selectedBuildingId')
   }
 
-  setSelectedStructureTemplate(templateId: string | null): void {
-    if (this.state.selectedStructureTemplate === templateId) return
-    this.state.selectedStructureTemplate = templateId
-    this.markDirty('selectedStructureTemplate')
+  setSelectedBuildingId(buildingId: BuildingId | null): void {
+    if (this.state.selectedBuildingId === buildingId) return
+    this.state.selectedBuildingId = buildingId
+    this.markDirty('selectedBuildingId')
   }
 
   setHoveredTile(tile: { x: number; y: number } | null): void {
@@ -172,6 +175,7 @@ export class GameStateManager {
     const existing = this.state.map.tiles[y][x]
     this.state.map.tiles[y][x] = {
       type,
+      buildingId: TILE_TYPE_TO_BUILDING_ID[type],
       x,
       y,
       level,
@@ -193,12 +197,54 @@ export class GameStateManager {
     const existing = this.state.map.tiles[y][x]
     this.state.map.tiles[y][x] = {
       type,
+      buildingId: TILE_TYPE_TO_BUILDING_ID[type],
       x,
       y,
       level,
       connected: false,
       terrain: existing.terrain,
       roadType,
+    }
+  }
+
+  /** 通过 BuildingId 设置瓦片（新主方法，同时设置 type 和 buildingId） */
+  setTileByBuildingId(
+    x: number,
+    y: number,
+    buildingId: BuildingId,
+    level = 1
+  ): void {
+    const existing = this.state.map.tiles[y][x]
+    const type = BUILDING_ID_TO_TILE_TYPE[buildingId]
+    this.state.map.tiles[y][x] = {
+      type,
+      buildingId,
+      x,
+      y,
+      level,
+      connected: false,
+      terrain: existing.terrain,
+    }
+    this.markDirty('map')
+  }
+
+  /** 通过 BuildingId 设置瓦片（静默版本） */
+  setTileByBuildingIdSilent(
+    x: number,
+    y: number,
+    buildingId: BuildingId,
+    level = 1
+  ): void {
+    const existing = this.state.map.tiles[y][x]
+    const type = BUILDING_ID_TO_TILE_TYPE[buildingId]
+    this.state.map.tiles[y][x] = {
+      type,
+      buildingId,
+      x,
+      y,
+      level,
+      connected: false,
+      terrain: existing.terrain,
     }
   }
 

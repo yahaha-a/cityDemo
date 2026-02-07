@@ -3,7 +3,7 @@ import type { GameStateManager } from '../engine/game-state'
 import type { IGameSystem, SystemRegistry } from '../engine/system-registry'
 import { TECH_TREE } from '../config'
 import type { PolicySystem } from './policy-system'
-import type { SynergySystem } from './synergy-system'
+import type { BuildingEffectSystem } from './building-effect-system'
 import type { SpecializationSystem } from './specialization-system'
 
 /**
@@ -13,22 +13,18 @@ export class TechSystem implements IGameSystem {
   readonly id = 'tech'
   private stateManager: GameStateManager
   private policySystem!: PolicySystem
-  private synergySystem!: SynergySystem
+  private buildingEffectSystem!: BuildingEffectSystem
   private specializationSystem!: SpecializationSystem
 
-  constructor(
-    stateManager: GameStateManager,
-    policySystem?: PolicySystem,
-    synergySystem?: SynergySystem
-  ) {
+  constructor(stateManager: GameStateManager, policySystem?: PolicySystem) {
     this.stateManager = stateManager
     if (policySystem) this.policySystem = policySystem
-    if (synergySystem) this.synergySystem = synergySystem
   }
 
   init(registry: SystemRegistry): void {
     this.policySystem = registry.get<PolicySystem>('policy')
-    this.synergySystem = registry.get<SynergySystem>('synergy')
+    this.buildingEffectSystem =
+      registry.get<BuildingEffectSystem>('buildingEffect')
     this.specializationSystem =
       registry.get<SpecializationSystem>('specialization')
   }
@@ -125,13 +121,13 @@ export class TechSystem implements IGameSystem {
 
   private calculateDailyRP(): number {
     const state = this.stateManager.getState()
-    const { economy, facilities } = state
+    const { economy, buildingEffects } = state
 
     // 基础 RP: 人口 / 50 * 2
     const popRP = Math.floor(economy.population / 50) * 2
 
     // 学校 RP
-    const schoolRP = facilities.totalResearchPoints
+    const schoolRP = buildingEffects.totalResearchPoints
 
     // 政策乘数
     const policyMult =
@@ -200,7 +196,10 @@ export class TechSystem implements IGameSystem {
         }
         case 'increase_synergy_radius': {
           if (!effect.target || effect.value === undefined) break
-          this.synergySystem.setRadiusOverride(effect.target, effect.value)
+          this.buildingEffectSystem.setRadiusOverride(
+            effect.target,
+            effect.value
+          )
           break
         }
         case 'research_multiplier': {

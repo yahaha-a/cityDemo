@@ -13,6 +13,8 @@ export interface EventTemplate {
   durationMax: number
   modifiers: Array<{ target: EventModifierTarget; multiplier: number }>
   unlockedByDefault: boolean
+  /** 事件对危机触发概率的影响 */
+  crisisModifiers?: Array<{ crisisId: string; multiplier: number }>
 }
 
 export const EVENT_TEMPLATES: EventTemplate[] = [
@@ -28,6 +30,7 @@ export const EVENT_TEMPLATES: EventTemplate[] = [
       { target: 'incomeMultiplier', multiplier: 1.3 },
     ],
     unlockedByDefault: true,
+    crisisModifiers: [{ crisisId: 'factory_fire', multiplier: 1.5 }],
   },
   {
     id: 'labor_shortage',
@@ -38,6 +41,7 @@ export const EVENT_TEMPLATES: EventTemplate[] = [
     durationMax: 15,
     modifiers: [{ target: 'laborSupplyMultiplier', multiplier: 0.7 }],
     unlockedByDefault: true,
+    crisisModifiers: [{ crisisId: 'worker_strike', multiplier: 2.0 }],
   },
   {
     id: 'road_decay',
