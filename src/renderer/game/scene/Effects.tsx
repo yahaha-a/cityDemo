@@ -8,7 +8,6 @@ export function Effects() {
         intensity={0.15}
         luminanceSmoothing={0.9}
         luminanceThreshold={0.8}
-        mipmapBlur
       />
       <ToneMapping mode={ToneMappingMode.ACES_FILMIC} />
     </EffectComposer>

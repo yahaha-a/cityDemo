@@ -10,6 +10,8 @@ const ROAD_HEIGHT = 0.02
 
 export function RoadNetwork() {
   const meshRef = useRef<THREE.InstancedMesh>(null)
+  // 脏标记：道路只在建造/拆除时变化
+  const prevMapRef = useRef<unknown>(null)
 
   const material = useMemo(
     () =>
@@ -34,6 +36,11 @@ export function RoadNetwork() {
     if (!mesh) return
 
     const { map } = state
+
+    // 引用比较：map 未变则跳过
+    if (map === prevMapRef.current) return
+    prevMapRef.current = map
+
     let count = 0
 
     for (let y = 0; y < map.height; y++) {
@@ -60,6 +67,7 @@ export function RoadNetwork() {
   return (
     <instancedMesh
       args={[geometry, material, maxCount]}
+      frustumCulled={false}
       receiveShadow
       ref={meshRef}
     />
