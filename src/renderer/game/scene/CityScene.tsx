@@ -1,3 +1,4 @@
+import { useCallback } from 'react'
 import { Canvas } from '@react-three/fiber'
 import { CameraRig } from './CameraRig'
 import { Lighting } from './Lighting'
@@ -7,8 +8,16 @@ import { RoadNetwork } from './RoadNetwork'
 import { HoverIndicator } from './HoverIndicator'
 import { InputPlane } from './InputPlane'
 import { Effects } from './Effects'
+import { useGameStore } from '../stores/game-store'
+import type { GameEngine } from '../engine/game-engine'
 
 export function CityScene() {
+  const handlePointerLeave = useCallback(() => {
+    const { engine } = useGameStore.getState()
+    if (!engine) return
+    ;(engine as GameEngine).stateManager.setHoveredTile(null)
+  }, [])
+
   return (
     <Canvas
       camera={{
@@ -22,6 +31,7 @@ export function CityScene() {
         toneMapping: 0, // 由 postprocessing 处理
         powerPreference: 'high-performance',
       }}
+      onPointerLeave={handlePointerLeave}
       onPointerMissed={() => {
         // 点击空白区域不做额外处理
       }}
