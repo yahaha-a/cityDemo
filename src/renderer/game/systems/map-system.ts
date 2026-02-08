@@ -1,6 +1,6 @@
 import type { DerivedMapStats } from 'shared/types'
 import type { BuildingId, BuildingCategory } from 'shared/types/building-defs'
-import { buildingIdToCategory } from 'shared/types/building-compat'
+import { buildingIdToCategory } from 'shared/types/building-defs'
 import type { GameStateManager } from '../engine/game-state'
 import type { IGameSystem } from '../engine/system-registry'
 import { MAP_WIDTH, MAP_HEIGHT } from '../config'

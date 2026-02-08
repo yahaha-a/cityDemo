@@ -5,7 +5,7 @@ import {
   type ResourceMarket,
   type DemandIndicators,
 } from 'shared/types'
-import { buildingIdToCategory } from 'shared/types/building-compat'
+import { buildingIdToCategory } from 'shared/types/building-defs'
 import type { GameStateManager } from '../engine/game-state'
 import type { IGameSystem, SystemRegistry } from '../engine/system-registry'
 import type { EventSystem } from './event-system'

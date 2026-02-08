@@ -63,7 +63,7 @@ GameStateManager (pub/sub) ──subscribe──→ Zustand Store ──useFrame
 - **BuildingSystem**（`building-system.ts`）：处理所有 16 种建筑的放置、拆除、升级。支持 1x1 到 2x2 及异形占地（L形、T形、十字形）。单格建筑支持拖动连续放置，多格建筑仅点击放置。
 - **BuildingEffectSystem**（`building-effect-system.ts`）：每日 tick 中统一计算区域效果、协同效应（13 条 synergyTags 规则）、资源供需（labor/goods/services 三级级联）。计算结果写入 `buildingEffects` 状态，供 EconomySystem 等下游系统读取。
 
-建筑通过 `BuildingId` 标识（定义在 `shared/types/building-defs.ts`），配置数据在 `game/config/building-defs.ts`（`BuildingDefinition`）。Tile 上的 `buildingId` 字段为主键，旧 `type` 字段保留用于向后兼容。兼容工具函数在 `shared/types/building-compat.ts`。
+建筑通过 `BuildingId` 标识（定义在 `shared/types/building-defs.ts`），配置数据在 `game/config/building-defs.ts`（`BuildingDefinition`）。Tile 上的 `buildingId` 字段为主键。`buildingIdToCategory()` 工具函数在 `shared/types/building-defs.ts`。
 
 ### 3D 渲染层（`game/scene/`）
 
@@ -99,7 +99,6 @@ GameStateManager (pub/sub) ──subscribe──→ Zustand Store ──useFrame
 
 - **BuildingId**: empty, road, house, apartment, residential_complex, shop, office, mall, factory, heavy_industry, warehouse, park, plaza, school, hospital, fire_station, police_station, power_plant
 - **BuildingCategory**: residential, commercial, industrial, service
-- **TileType**: Empty, Road, Residential, Commercial, Industrial, Park, School, Hospital, FireStation, PoliceStation, PowerPlant（保留用于向后兼容）
 - **ToolType**: Select, Road, Build, Demolish, Upgrade, Terraform
 - **TimeSpeed**: Paused(0), Normal(1), Fast(2), Ultra(3)
 - **GameState**: 完整游戏状态（map, money, time, economy, buildingEffects, events, policies, tech, challenge, specialization, milestones 等）

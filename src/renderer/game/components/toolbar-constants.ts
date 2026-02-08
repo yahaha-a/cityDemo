@@ -1,5 +1,4 @@
 import { ToolType, RoadType } from 'shared/types'
-import type { DemandIndicators } from 'shared/types'
 import type { BuildingId, BuildingCategory } from 'shared/types/building-defs'
 import {
   MousePointer2,
@@ -41,15 +40,6 @@ export const TOOL_ICONS: Record<
   [ToolType.Highway]: Waypoints,
   [ToolType.Bridge]: Route,
   [ToolType.Tunnel]: Route,
-  [ToolType.Residential]: Home,
-  [ToolType.Commercial]: Store,
-  [ToolType.Industrial]: Factory,
-  [ToolType.Park]: TreePine,
-  [ToolType.School]: GraduationCap,
-  [ToolType.Hospital]: Cross,
-  [ToolType.FireStation]: Flame,
-  [ToolType.PoliceStation]: Shield,
-  [ToolType.PowerPlant]: Zap,
   [ToolType.Upgrade]: ArrowBigUp,
   [ToolType.Demolish]: Trash2,
   [ToolType.FlattenTerrain]: Mountain,
@@ -107,14 +97,6 @@ export const ACTION_TOOLS = [
   { type: ToolType.Upgrade },
   { type: ToolType.Demolish },
 ]
-
-export const TOOL_TO_DEMAND_KEY: Partial<
-  Record<ToolType, keyof DemandIndicators>
-> = {
-  [ToolType.Residential]: 'residential',
-  [ToolType.Commercial]: 'commercial',
-  [ToolType.Industrial]: 'industrial',
-}
 
 export const PANEL_BUTTONS: {
   panel: NonNullable<ModalType>

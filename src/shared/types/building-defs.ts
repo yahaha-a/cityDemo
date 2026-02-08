@@ -61,6 +61,35 @@ export interface BuildingDefinition {
   unlockCondition: { type: 'initial' | 'tech' | 'milestone'; id?: string }
 }
 
+/** BuildingId → BuildingCategory 快速查询 */
+const BUILDING_ID_CATEGORY: Record<BuildingId, BuildingCategory | null> = {
+  empty: null,
+  road: null,
+  house: 'residential',
+  apartment: 'residential',
+  residential_complex: 'residential',
+  shop: 'commercial',
+  office: 'commercial',
+  mall: 'commercial',
+  factory: 'industrial',
+  heavy_industry: 'industrial',
+  warehouse: 'industrial',
+  park: 'service',
+  plaza: 'service',
+  school: 'service',
+  hospital: 'service',
+  fire_station: 'service',
+  police_station: 'service',
+  power_plant: 'service',
+}
+
+/** 获取 BuildingId 的分类 */
+export function buildingIdToCategory(
+  id: BuildingId,
+): BuildingCategory | null {
+  return BUILDING_ID_CATEGORY[id]
+}
+
 /** 旋转 footprint（顺时针 90° × rotation 次） */
 export function rotateFootprint(
   footprint: Array<{ dx: number; dy: number }>,

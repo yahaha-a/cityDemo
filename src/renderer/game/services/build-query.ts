@@ -2,13 +2,11 @@ import {
   type GameState,
   type Tile,
   ToolType,
-  toolToBuildingId,
   toolToRoadType,
   isRoadTool,
   isTerraformTool,
-  isFacilityBuilding,
 } from 'shared/types'
-import { buildingIdToCategory } from 'shared/types/building-compat'
+import { buildingIdToCategory } from 'shared/types/building-defs'
 import { getBuildingDef } from '../config/building-defs'
 import {
   TERRAIN_BUILD_COST_MULTIPLIER,
@@ -78,21 +76,12 @@ export class BuildQuery {
       }
     }
 
-    const targetBid = toolToBuildingId[currentTool]
-    if (!targetBid) return 'valid'
-
-    // 道路工具特殊验证
+    // 道路工具验证
     if (isRoadTool(currentTool)) {
       return this.canBuildRoad(tile, currentTool, money) ? 'valid' : 'invalid'
     }
 
-    if (isFacilityBuilding(targetBid)) {
-      return this.canBuildFacility(tile, targetBid, money, state)
-        ? 'valid'
-        : 'invalid'
-    }
-
-    return this.canBuildRegular(tile, targetBid, money) ? 'valid' : 'invalid'
+    return 'none'
   }
 
   private canUpgradeTile(tile: Tile, state: GameState): boolean {
@@ -122,35 +111,6 @@ export class BuildQuery {
       def.cost * mult * UPGRADE_COST_MULTIPLIER[tile.level]
     )
     return state.money >= cost
-  }
-
-  private canBuildFacility(
-    tile: Tile,
-    buildingId: string,
-    money: number,
-    state: GameState
-  ): boolean {
-    const def = getBuildingDef(buildingId)
-    if (!def) return false
-
-    const isUnlocked =
-      def.unlockCondition.type === 'initial' ||
-      (def.unlockCondition.type === 'tech' &&
-        state.tech.researched.includes(def.unlockCondition.id!)) ||
-      (def.unlockCondition.type === 'milestone' &&
-        state.milestones.achieved.includes(def.unlockCondition.id!))
-
-    const terrainMult = TERRAIN_BUILD_COST_MULTIPLIER[tile.terrain]
-    const cost = Number.isFinite(terrainMult)
-      ? Math.ceil(def.cost * terrainMult)
-      : null
-
-    return (
-      tile.buildingId === 'empty' &&
-      cost !== null &&
-      money >= cost &&
-      isUnlocked
-    )
   }
 
   private canTerraform(
@@ -189,21 +149,5 @@ export class BuildQuery {
     }
 
     return money >= config.buildCost
-  }
-
-  private canBuildRegular(
-    tile: Tile,
-    buildingId: string,
-    money: number
-  ): boolean {
-    const def = getBuildingDef(buildingId)
-    if (!def) return true
-
-    const terrainMult = TERRAIN_BUILD_COST_MULTIPLIER[tile.terrain]
-    return (
-      tile.buildingId === 'empty' &&
-      Number.isFinite(terrainMult) &&
-      money >= Math.ceil(def.cost * terrainMult)
-    )
   }
 }
