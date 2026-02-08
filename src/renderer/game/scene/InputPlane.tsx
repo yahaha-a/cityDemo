@@ -1,4 +1,4 @@
-import { useRef, useCallback } from 'react'
+import { useRef, useCallback, useEffect } from 'react'
 import type * as THREE from 'three'
 import type { ThreeEvent } from '@react-three/fiber'
 import { MAP_WIDTH, MAP_HEIGHT } from '../config'
@@ -87,6 +87,23 @@ export function InputPlane() {
 
   const onPointerUp = useCallback(() => {
     isBuildingRef.current = false
+  }, [])
+
+  // R 键旋转建筑
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'r' || e.key === 'R') {
+        const { engine } = useGameStore.getState()
+        if (!engine) return
+        const ge = engine as GameEngine
+        const state = ge.stateManager.getState()
+        if (state.selectedBuildingId) {
+          ge.rotateBuildingCW()
+        }
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
   }, [])
 
   return (

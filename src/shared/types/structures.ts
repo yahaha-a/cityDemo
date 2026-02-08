@@ -33,6 +33,7 @@ export interface StructureInstance {
   originY: number
   level: number
   connected: boolean
+  rotation?: number
   activeCombo?: string
 }
 

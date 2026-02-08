@@ -60,3 +60,22 @@ export interface BuildingDefinition {
   areaRadius: number
   unlockCondition: { type: 'initial' | 'tech' | 'milestone'; id?: string }
 }
+
+/** 旋转 footprint（顺时针 90° × rotation 次） */
+export function rotateFootprint(
+  footprint: Array<{ dx: number; dy: number }>,
+  rotation: number
+): Array<{ dx: number; dy: number }> {
+  const r = ((rotation % 4) + 4) % 4
+  if (r === 0) return footprint
+  return footprint.map(({ dx, dy }) => {
+    let rdx = dx
+    let rdy = dy
+    for (let i = 0; i < r; i++) {
+      const tmp = rdx
+      rdx = -rdy
+      rdy = tmp
+    }
+    return { dx: rdx, dy: rdy }
+  })
+}

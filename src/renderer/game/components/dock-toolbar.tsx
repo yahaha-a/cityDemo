@@ -381,8 +381,6 @@ export const DockToolbar = memo(function DockToolbar({
       <div className="relative">
         <DockIcon
           active={isRoadToolActive || roadMenuOpen}
-          canAfford={money >= ROAD_CONFIGS[RoadType.Normal].buildCost}
-          cost={ROAD_CONFIGS[RoadType.Normal].buildCost}
           icon={Route}
           label="道路"
           onClick={() => setRoadMenuOpen(prev => !prev)}

@@ -111,6 +111,10 @@ export class GameEngine implements GameEngineFacade {
   setSelectedBuildingId(buildingId: BuildingId | null): void {
     this.stateManager.setSelectedBuildingId(buildingId)
   }
+  rotateBuildingCW(): void {
+    const current = this.stateManager.getState().buildingRotation
+    this.stateManager.setBuildingRotation((current + 1) % 4)
+  }
 
   // === Facade: 政策系统 ===
   togglePolicy(policyId: string): boolean {

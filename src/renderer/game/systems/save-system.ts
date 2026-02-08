@@ -343,6 +343,7 @@ export class SaveSystem implements IGameSystem {
       ...saveData.gameState,
       hoveredTile: null,
       selectedBuildingId: null,
+      buildingRotation: 0,
       buildingEffects: saveData.gameState.buildingEffects ?? {
         tileEffects: {},
         globalSatisfactionMod: 0,

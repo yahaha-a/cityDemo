@@ -220,6 +220,7 @@ export function createInitialState(): GameState {
     specialization: createInitialSpecialization(),
     structures: createInitialStructures(),
     buildingEffects: createInitialBuildingEffects(),
+    buildingRotation: 0,
     _derived: { mapStats: null },
   }
 }

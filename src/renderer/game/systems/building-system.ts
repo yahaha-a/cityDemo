@@ -8,6 +8,7 @@ import {
   isTerraformTool,
 } from 'shared/types'
 import type { BuildingId, BuildingDefinition } from 'shared/types/building-defs'
+import { rotateFootprint } from 'shared/types/building-defs'
 import {
   BUILDING_COSTS,
   DEMOLISH_REFUND_RATIO,
@@ -77,8 +78,11 @@ export class BuildingSystemV2 implements IGameSystem {
     const def = getBuildingDef(buildingId)
     if (!def) return false
 
+    const rotation = this.stateManager.getState().buildingRotation
+    const footprint = rotateFootprint(def.footprint, rotation)
+
     // 验证所有足迹格
-    for (const { dx, dy } of def.footprint) {
+    for (const { dx, dy } of footprint) {
       const fx = x + dx
       const fy = y + dy
 
@@ -100,7 +104,7 @@ export class BuildingSystemV2 implements IGameSystem {
     const actualCost = Math.ceil(def.cost * terrainMult)
     if (!this.stateManager.spendMoney(actualCost)) return false
 
-    if (def.footprint.length === 1) {
+    if (footprint.length === 1) {
       // 单格建筑
       this.stateManager.setTileByBuildingId(x, y, buildingId, 1)
     } else {
@@ -108,12 +112,12 @@ export class BuildingSystemV2 implements IGameSystem {
       const structureId = `struct_${nextStructureId++}`
 
       this.stateManager.batch(() => {
-        for (const { dx, dy } of def.footprint) {
+        for (const { dx, dy } of footprint) {
           const fx = x + dx
           const fy = y + dy
           const isOrigin = dx === 0 && dy === 0
 
-          this.stateManager.setTileByBuildingIdSilent(fx, fy, buildingId, 1)
+          this.stateManager.setTileByBuildingId(fx, fy, buildingId, 1)
           this.stateManager.setTileStructure(
             fx,
             fy,
@@ -130,6 +134,7 @@ export class BuildingSystemV2 implements IGameSystem {
           originY: y,
           level: 1,
           connected: false,
+          rotation,
         })
       })
     }
@@ -211,12 +216,14 @@ export class BuildingSystemV2 implements IGameSystem {
       // 退款 50%
       this.stateManager.addMoney(Math.floor(def.cost * DEMOLISH_REFUND_RATIO))
 
+      const footprint = rotateFootprint(def.footprint, instance.rotation ?? 0)
+
       // 批量清除所有格子
       this.stateManager.batch(() => {
-        for (const { dx, dy } of def.footprint) {
+        for (const { dx, dy } of footprint) {
           const fx = instance.originX + dx
           const fy = instance.originY + dy
-          this.stateManager.setTileAtSilent(fx, fy, TileType.Empty, 0)
+          this.stateManager.setTileAt(fx, fy, TileType.Empty, 0)
           this.stateManager.setTileStructure(fx, fy, undefined, undefined)
         }
         this.stateManager.removeStructure(structureId)
@@ -287,12 +294,15 @@ export class BuildingSystemV2 implements IGameSystem {
   getPreviewFootprint(
     buildingId: BuildingId,
     originX: number,
-    originY: number
+    originY: number,
+    rotation = 0
   ): Array<{ x: number; y: number; valid: boolean }> {
     const def = getBuildingDef(buildingId)
     if (!def) return []
 
-    return def.footprint.map(({ dx, dy }) => {
+    const footprint = rotateFootprint(def.footprint, rotation)
+
+    return footprint.map(({ dx, dy }) => {
       const fx = originX + dx
       const fy = originY + dy
 
