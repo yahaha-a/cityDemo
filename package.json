@@ -2,7 +2,7 @@
   "displayName": "City Demo",
   "name": "city-demo",
   "description": "city-building simulation game",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "main": "./node_modules/.dev/main/index.mjs",
   "resources": "src/resources",
   "author": {
@@ -32,6 +32,9 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@react-three/drei": "^10.7.7",
+    "@react-three/fiber": "^9.5.0",
+    "@react-three/postprocessing": "^3.0.4",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "electron-router-dom": "^2.1.0",
@@ -40,7 +43,9 @@
     "react-dom": "^19.2.1",
     "react-router-dom": "^7.10.1",
     "tailwind-merge": "^3.4.0",
-    "tailwindcss-animate": "^1.0.7"
+    "tailwindcss-animate": "^1.0.7",
+    "three": "^0.182.0",
+    "zustand": "^5.0.11"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.3.8",
@@ -49,6 +54,7 @@
     "@types/react": "^19.2.7",
     "@types/react-dom": "^19.2.3",
     "@types/semver": "^7.7.1",
+    "@types/three": "^0.182.0",
     "@vitejs/plugin-react": "^5.1.1",
     "code-inspector-plugin": "^1.3.0",
     "cross-env": "^10.1.0",

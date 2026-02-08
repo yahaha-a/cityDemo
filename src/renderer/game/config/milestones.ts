@@ -1,4 +1,4 @@
-import type { Milestone } from 'shared/game-types'
+import type { Milestone } from 'shared/types'
 
 export const SATISFACTION_STREAK_THRESHOLD = 70
 
@@ -20,9 +20,9 @@ export const MILESTONES: Milestone[] = [
   {
     id: 'pop_300',
     name: '城市雏形',
-    description: '人口达到 300',
+    description: '人口达到 300，解锁广场',
     condition: { type: 'population', threshold: 300 },
-    reward: { type: 'bonus_money', value: 5000 },
+    reward: { type: 'unlock_building', buildingId: 'plaza' },
   },
   {
     id: 'happy_7',

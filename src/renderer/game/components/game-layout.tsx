@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect } from 'react'
 import { GameCanvas } from './game-canvas'
 import type { GameEngine } from '../engine/game-engine'
+import type { GameEngineFacade } from '../context/engine-facade'
 import { GameEngineProvider, useEngine } from '../context/game-engine-context'
 import { GameErrorBoundary } from './game-error-boundary'
 import { HudBar } from './hud-bar'
@@ -33,15 +34,15 @@ function GameUI({ onReturnToStart }: { onReturnToStart?: () => void }) {
   const specialization = useSpecialization()
 
   const handleSelectTool = useCallback(
-    (tool: import('shared/game-types').ToolType) => {
-      engine.stateManager.setTool(tool)
+    (tool: import('shared/types').ToolType) => {
+      engine.setTool(tool)
     },
-    [engine.stateManager]
+    [engine]
   )
 
   const handleResetGame = useCallback(() => {
-    engine.stateManager.resetGame()
-  }, [engine.stateManager])
+    engine.resetGame()
+  }, [engine])
 
   const handleToggleModal = useCallback((modal: ModalType) => {
     setActiveModal(modal)
@@ -87,7 +88,11 @@ function GameUI({ onReturnToStart }: { onReturnToStart?: () => void }) {
       {/* 弹窗面板 */}
       {activeModal && (
         <ModalOverlay onClick={() => setActiveModal(null)}>
-          <div onClick={e => e.stopPropagation()} onKeyDown={() => {}}>
+          <div
+            onClick={e => e.stopPropagation()}
+            onKeyDown={() => {}}
+            role="presentation"
+          >
             {activeModal === 'milestones' && <MilestonePanel />}
             {activeModal === 'policy' && <PolicyPanel />}
             {activeModal === 'tech' && <TechPanel dailyRP={tech.dailyRP} />}
@@ -160,12 +165,12 @@ interface GameLayoutProps {
 }
 
 export function GameLayout({ loadSlotId, onReturnToStart }: GameLayoutProps) {
-  const [engine, setEngine] = useState<GameEngine | null>(null)
+  const [engine, setEngine] = useState<GameEngineFacade | null>(null)
 
   const handleEngineReady = useCallback(
     (eng: GameEngine) => {
       if (loadSlotId) {
-        eng.saveSystem.loadFromSlot(loadSlotId)
+        eng.loadFromSlot(loadSlotId)
       }
       setEngine(eng)
     },

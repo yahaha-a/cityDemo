@@ -1,5 +1,5 @@
 import { memo, useState } from 'react'
-import { MILESTONES } from '../constants'
+import { MILESTONES } from '../config'
 import { useMilestones } from '../hooks/use-game-selector'
 import { GamePanel, GamePanelHeader } from './ui/game-panel'
 import { Trophy, Lock, ChevronDown, ChevronUp } from 'lucide-react'

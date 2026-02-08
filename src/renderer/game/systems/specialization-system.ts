@@ -1,11 +1,13 @@
-import type { SpecializationState } from 'shared/game-types'
+import type { SpecializationState } from 'shared/types'
 import type { GameStateManager } from '../engine/game-state'
-import { SPECIALIZATION_TEMPLATES } from '../constants'
+import type { IGameSystem } from '../engine/system-registry'
+import { SPECIALIZATION_TEMPLATES } from '../config'
 
 /**
  * 城市特色系统 - 一次性不可逆的城市定位选择
  */
-export class SpecializationSystem {
+export class SpecializationSystem implements IGameSystem {
+  readonly id = 'specialization'
   private stateManager: GameStateManager
 
   constructor(stateManager: GameStateManager) {

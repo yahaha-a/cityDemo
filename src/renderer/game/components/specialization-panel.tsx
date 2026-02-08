@@ -1,5 +1,5 @@
-import { SPECIALIZATION_TEMPLATES } from '../constants'
-import type { SpecializationEffect } from 'shared/game-types'
+import { SPECIALIZATION_TEMPLATES } from '../config'
+import type { SpecializationEffect } from 'shared/types'
 import { useEngine } from '../context/game-engine-context'
 import { useSpecialization } from '../hooks/use-game-selector'
 import { ModalOverlay } from './ui/modal-overlay'
@@ -60,9 +60,7 @@ export function SpecializationPanel() {
                   'transition-all cursor-pointer'
                 )}
                 key={specId}
-                onClick={() =>
-                  engine.specializationSystem.chooseSpecialization(specId)
-                }
+                onClick={() => engine.chooseSpecialization(specId)}
                 style={{ transform: `rotate(${rotation})` }}
                 type="button"
               >

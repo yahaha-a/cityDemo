@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { MILESTONES } from '../constants'
+import { MILESTONES } from '../config'
 import { useEvents, useMilestones } from '../hooks/use-game-selector'
 import { Trophy, Bell } from 'lucide-react'
 import { cn } from 'renderer/lib/utils'

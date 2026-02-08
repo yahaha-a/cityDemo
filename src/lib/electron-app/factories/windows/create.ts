@@ -1,7 +1,7 @@
 import { BrowserWindow } from 'electron'
 import { join } from 'node:path'
 
-import type { WindowProps } from 'shared/types'
+import type { WindowProps } from 'shared/window-types'
 
 import { registerRoute } from 'lib/electron-router-dom'
 

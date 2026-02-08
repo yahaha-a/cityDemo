@@ -1,19 +1,35 @@
-import type { PolicyEffect } from 'shared/game-types'
+import type { PolicyEffect } from 'shared/types'
 import type { GameStateManager } from '../engine/game-state'
+import type { IGameSystem } from '../engine/system-registry'
 import {
   POLICY_TEMPLATES,
   MAX_ACTIVE_POLICIES,
   POLICY_DEFAULT_COOLDOWN,
-} from '../constants'
+} from '../config'
 
 /**
  * 政策系统 - 可开关的城市政策
+ * 缓存 getAggregatedEffect 结果，仅在政策变更时失效
  */
-export class PolicySystem {
+export class PolicySystem implements IGameSystem {
+  readonly id = 'policy'
   private stateManager: GameStateManager
+  // 缓存：activePolicies 引用 → effect 类型 → 聚合值
+  private cachedActivePolicies: string[] | null = null
+  private effectCache = new Map<string, number>()
 
   constructor(stateManager: GameStateManager) {
     this.stateManager = stateManager
+  }
+
+  processDailyTick(): void {
+    this.processDailyPolicies()
+  }
+
+  /** 使缓存失效 */
+  private invalidateCache(): void {
+    this.cachedActivePolicies = null
+    this.effectCache.clear()
   }
 
   /** 每日递减冷却计时 */
@@ -58,6 +74,7 @@ export class PolicySystem {
         [policyId]: template.cooldownDays || POLICY_DEFAULT_COOLDOWN,
       }
       this.stateManager.update({ policies })
+      this.invalidateCache()
       return true
     }
 
@@ -79,15 +96,28 @@ export class PolicySystem {
 
     policies.activePolicies = [...policies.activePolicies, policyId]
     this.stateManager.update({ policies })
+    this.invalidateCache()
     return true
   }
 
-  /** 聚合指定效果类型的值 */
+  /** 聚合指定效果类型的值（带缓存） */
   getAggregatedEffect(effectType: PolicyEffect['type']): number {
     const state = this.stateManager.getState()
+    const { activePolicies } = state.policies
+
+    // 检查缓存是否有效（引用比较）
+    if (activePolicies === this.cachedActivePolicies) {
+      const cached = this.effectCache.get(effectType)
+      if (cached !== undefined) return cached
+    } else {
+      // 政策列表变了，清除所有缓存
+      this.cachedActivePolicies = activePolicies
+      this.effectCache.clear()
+    }
+
     let result = effectType.includes('multiplier') ? 1 : 0
 
-    for (const policyId of state.policies.activePolicies) {
+    for (const policyId of activePolicies) {
       const template = POLICY_TEMPLATES.find(t => t.id === policyId)
       if (!template) continue
 
@@ -102,6 +132,7 @@ export class PolicySystem {
       }
     }
 
+    this.effectCache.set(effectType, result)
     return result
   }
 

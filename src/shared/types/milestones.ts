@@ -1,4 +1,4 @@
-import type { TileType } from './core'
+import type { BuildingId } from './building-defs'
 
 export interface MilestoneCondition {
   type:
@@ -8,14 +8,19 @@ export interface MilestoneCondition {
     | 'building_count'
     | 'day_reached'
   threshold: number
-  buildingType?: TileType
+  buildingType?: BuildingId
   streakDays?: number
 }
 
 export interface MilestoneReward {
-  type: 'bonus_money' | 'unlock_upgrade_lv3' | 'unlock_event'
+  type:
+    | 'bonus_money'
+    | 'unlock_upgrade_lv3'
+    | 'unlock_event'
+    | 'unlock_building'
   value?: number
   eventId?: string
+  buildingId?: string
 }
 
 export interface Milestone {

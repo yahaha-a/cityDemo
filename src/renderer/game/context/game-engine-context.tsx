@@ -1,13 +1,13 @@
 import { createContext, useContext, type ReactNode } from 'react'
-import type { GameEngine } from '../engine/game-engine'
+import type { GameEngineFacade } from './engine-facade'
 
-const GameEngineContext = createContext<GameEngine | null>(null)
+const GameEngineContext = createContext<GameEngineFacade | null>(null)
 
 export function GameEngineProvider({
   engine,
   children,
 }: {
-  engine: GameEngine
+  engine: GameEngineFacade
   children: ReactNode
 }) {
   return (
@@ -17,7 +17,7 @@ export function GameEngineProvider({
   )
 }
 
-export function useEngine(): GameEngine {
+export function useEngine(): GameEngineFacade {
   const engine = useContext(GameEngineContext)
   if (!engine) {
     throw new Error('useEngine must be used within a GameEngineProvider')

@@ -1,25 +1,37 @@
-import type { TileType, TechState } from 'shared/game-types'
+import type { TechState } from 'shared/types'
+import type { BuildingId } from 'shared/types/building-defs'
 import type { GameStateManager } from '../engine/game-state'
-import { TECH_TREE } from '../constants'
+import type { IGameSystem, SystemRegistry } from '../engine/system-registry'
+import { TECH_TREE } from '../config'
 import type { PolicySystem } from './policy-system'
-import type { SynergySystem } from './synergy-system'
+import type { BuildingEffectSystem } from './building-effect-system'
+import type { SpecializationSystem } from './specialization-system'
 
 /**
  * 科技树系统 - 研究点生成和科技解锁
  */
-export class TechSystem {
+export class TechSystem implements IGameSystem {
+  readonly id = 'tech'
   private stateManager: GameStateManager
-  private policySystem: PolicySystem
-  private synergySystem: SynergySystem
+  private policySystem!: PolicySystem
+  private buildingEffectSystem!: BuildingEffectSystem
+  private specializationSystem!: SpecializationSystem
 
-  constructor(
-    stateManager: GameStateManager,
-    policySystem: PolicySystem,
-    synergySystem: SynergySystem
-  ) {
+  constructor(stateManager: GameStateManager, policySystem?: PolicySystem) {
     this.stateManager = stateManager
-    this.policySystem = policySystem
-    this.synergySystem = synergySystem
+    if (policySystem) this.policySystem = policySystem
+  }
+
+  init(registry: SystemRegistry): void {
+    this.policySystem = registry.get<PolicySystem>('policy')
+    this.buildingEffectSystem =
+      registry.get<BuildingEffectSystem>('buildingEffect')
+    this.specializationSystem =
+      registry.get<SpecializationSystem>('specialization')
+  }
+
+  processDailyTick(): void {
+    this.processDailyTech()
   }
 
   /** 每日科技处理 */
@@ -110,13 +122,13 @@ export class TechSystem {
 
   private calculateDailyRP(): number {
     const state = this.stateManager.getState()
-    const { economy, facilities } = state
+    const { economy, buildingEffects } = state
 
     // 基础 RP: 人口 / 50 * 2
     const popRP = Math.floor(economy.population / 50) * 2
 
     // 学校 RP
-    const schoolRP = facilities.totalResearchPoints
+    const schoolRP = buildingEffects.totalResearchPoints
 
     // 政策乘数
     const policyMult =
@@ -131,11 +143,8 @@ export class TechSystem {
     }
 
     // 特色乘数
-    const specMult = 1
-    if (state.specialization.chosen) {
-      // 从 specialization effects 获取 research_multiplier
-      // 在经济系统中聚合处理
-    }
+    const specMult =
+      this.specializationSystem.getEffectValue('research_multiplier') ?? 1
 
     return Math.floor((popRP + schoolRP) * policyMult * techMult * specMult)
   }
@@ -148,9 +157,9 @@ export class TechSystem {
       switch (effect.type) {
         case 'unlock_building': {
           if (!effect.target) break
-          const tileType = effect.target as TileType
-          if (!tech.unlockedBuildings.includes(tileType)) {
-            tech.unlockedBuildings = [...tech.unlockedBuildings, tileType]
+          const buildingId = effect.target as BuildingId
+          if (!tech.unlockedBuildings.includes(buildingId)) {
+            tech.unlockedBuildings = [...tech.unlockedBuildings, buildingId]
           }
           break
         }
@@ -188,7 +197,10 @@ export class TechSystem {
         }
         case 'increase_synergy_radius': {
           if (!effect.target || effect.value === undefined) break
-          this.synergySystem.setRadiusOverride(effect.target, effect.value)
+          this.buildingEffectSystem.setRadiusOverride(
+            effect.target,
+            effect.value
+          )
           break
         }
         case 'research_multiplier': {

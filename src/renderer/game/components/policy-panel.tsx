@@ -1,5 +1,5 @@
 import { memo } from 'react'
-import { POLICY_TEMPLATES, MAX_ACTIVE_POLICIES } from '../constants'
+import { POLICY_TEMPLATES, MAX_ACTIVE_POLICIES } from '../config'
 import { useEngine } from '../context/game-engine-context'
 import { usePolicies } from '../hooks/use-game-selector'
 import { GamePanel, GamePanelHeader } from './ui/game-panel'
@@ -35,9 +35,7 @@ export const PolicyPanel = memo(function PolicyPanel() {
           </div>
           {POLICY_TEMPLATES.filter(t => t.category === cat).map(template => {
             const isActive = policies.activePolicies.includes(template.id)
-            const { canToggle, reason } = engine.policySystem.canTogglePolicy(
-              template.id
-            )
+            const { canToggle, reason } = engine.canTogglePolicy(template.id)
             const cooldown = policies.cooldowns[template.id] ?? 0
 
             return (
@@ -52,7 +50,7 @@ export const PolicyPanel = memo(function PolicyPanel() {
                 )}
                 disabled={!canToggle && !isActive}
                 key={template.id}
-                onClick={() => engine.policySystem.togglePolicy(template.id)}
+                onClick={() => engine.togglePolicy(template.id)}
                 title={reason}
                 type="button"
               >

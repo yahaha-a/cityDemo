@@ -1,89 +1,5 @@
-import { TileType, TerrainType, type BuildingCosts } from 'shared/game-types'
-
-/** 建筑成本 */
-export const BUILDING_COSTS: BuildingCosts = {
-  [TileType.Road]: 10,
-  [TileType.Residential]: 100,
-  [TileType.Commercial]: 150,
-  [TileType.Industrial]: 200,
-}
-
-/** 建筑高度 (像素) */
-export const BUILDING_HEIGHTS: Record<TileType, number> = {
-  [TileType.Empty]: 0,
-  [TileType.Road]: 0,
-  [TileType.Residential]: 32,
-  [TileType.Commercial]: 40,
-  [TileType.Industrial]: 28,
-  [TileType.Park]: 10,
-  [TileType.School]: 36,
-  [TileType.Hospital]: 44,
-  [TileType.FireStation]: 32,
-  [TileType.PoliceStation]: 32,
-  [TileType.PowerPlant]: 48,
-}
-
-/** 瓦片颜色 */
-export const TILE_COLORS: Record<
-  TileType,
-  { top: string; left: string; right: string }
-> = {
-  [TileType.Empty]: {
-    top: '#4ade80',
-    left: '#22c55e',
-    right: '#16a34a',
-  },
-  [TileType.Road]: {
-    top: '#9ca3af',
-    left: '#6b7280',
-    right: '#4b5563',
-  },
-  [TileType.Residential]: {
-    top: '#60a5fa',
-    left: '#3b82f6',
-    right: '#2563eb',
-  },
-  [TileType.Commercial]: {
-    top: '#facc15',
-    left: '#eab308',
-    right: '#ca8a04',
-  },
-  [TileType.Industrial]: {
-    top: '#f87171',
-    left: '#ef4444',
-    right: '#dc2626',
-  },
-  [TileType.Park]: {
-    top: '#34d399',
-    left: '#10b981',
-    right: '#059669',
-  },
-  [TileType.School]: {
-    top: '#a78bfa',
-    left: '#8b5cf6',
-    right: '#7c3aed',
-  },
-  [TileType.Hospital]: {
-    top: '#f9a8d4',
-    left: '#f472b6',
-    right: '#ec4899',
-  },
-  [TileType.FireStation]: {
-    top: '#fb923c',
-    left: '#f97316',
-    right: '#ea580c',
-  },
-  [TileType.PoliceStation]: {
-    top: '#67e8f9',
-    left: '#22d3ee',
-    right: '#06b6d4',
-  },
-  [TileType.PowerPlant]: {
-    top: '#fbbf24',
-    left: '#d97706',
-    right: '#b45309',
-  },
-}
+import { TerrainType } from 'shared/types'
+import type { BuildingId } from 'shared/types/building-defs'
 
 /** 地形建造成本乘数 */
 export const TERRAIN_BUILD_COST_MULTIPLIER: Record<TerrainType, number> = {
@@ -141,6 +57,32 @@ export const TERRAIN_COLORS: Record<
 
 /** 拆除退款比例 */
 export const DEMOLISH_REFUND_RATIO = 0.5
+
+// === 建筑颜色（新建筑系统） ===
+
+export const BUILDING_COLORS: Record<
+  BuildingId,
+  { base: string; accent: string }
+> = {
+  empty: { base: '#4ade80', accent: '#22c55e' },
+  road: { base: '#9ca3af', accent: '#6b7280' },
+  house: { base: '#60a5fa', accent: '#3b82f6' },
+  apartment: { base: '#818cf8', accent: '#6366f1' },
+  residential_complex: { base: '#a78bfa', accent: '#8b5cf6' },
+  shop: { base: '#facc15', accent: '#eab308' },
+  office: { base: '#fbbf24', accent: '#f59e0b' },
+  mall: { base: '#f59e0b', accent: '#d97706' },
+  factory: { base: '#f87171', accent: '#ef4444' },
+  heavy_industry: { base: '#fb923c', accent: '#f97316' },
+  warehouse: { base: '#d4d4d8', accent: '#a1a1aa' },
+  park: { base: '#34d399', accent: '#10b981' },
+  plaza: { base: '#fcd34d', accent: '#fbbf24' },
+  school: { base: '#c084fc', accent: '#a855f7' },
+  hospital: { base: '#f9a8d4', accent: '#f472b6' },
+  fire_station: { base: '#fb923c', accent: '#ea580c' },
+  police_station: { base: '#67e8f9', accent: '#06b6d4' },
+  power_plant: { base: '#fde047', accent: '#facc15' },
+}
 
 // === 建筑升级常量 ===
 

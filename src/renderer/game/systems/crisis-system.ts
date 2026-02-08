@@ -1,10 +1,7 @@
-import type {
-  TileType,
-  ChallengeState,
-  CrisisTemplate,
-  ActiveCrisis,
-} from 'shared/game-types'
+import type { ChallengeState, CrisisTemplate, ActiveCrisis } from 'shared/types'
+import type { BuildingId } from 'shared/types/building-defs'
 import type { GameStateManager } from '../engine/game-state'
+import type { IGameSystem, SystemRegistry } from '../engine/system-registry'
 import {
   CRISIS_TEMPLATES,
   CRISIS_BASE_COOLDOWN,
@@ -17,20 +14,32 @@ import {
   CHALLENGE_WIN_DAYS,
   MAP_WIDTH,
   MAP_HEIGHT,
-} from '../constants'
+} from '../config'
 import type { PolicySystem } from './policy-system'
+import type { EventSystem } from './event-system'
 
 /**
  * 危机挑战系统 - 交互式危机事件和挑战模式
  */
-export class CrisisSystem {
+export class CrisisSystem implements IGameSystem {
+  readonly id = 'crisis'
   private stateManager: GameStateManager
-  private policySystem: PolicySystem
+  private policySystem!: PolicySystem
+  private eventSystem!: EventSystem
   private crisisCooldown = CRISIS_BASE_COOLDOWN
 
-  constructor(stateManager: GameStateManager, policySystem: PolicySystem) {
+  constructor(stateManager: GameStateManager, policySystem?: PolicySystem) {
     this.stateManager = stateManager
-    this.policySystem = policySystem
+    if (policySystem) this.policySystem = policySystem
+  }
+
+  init(registry: SystemRegistry): void {
+    this.policySystem = registry.get<PolicySystem>('policy')
+    this.eventSystem = registry.get<EventSystem>('event')
+  }
+
+  processDailyTick(): void {
+    this.processDailyCrisis()
   }
 
   /** 每日危机处理 */
@@ -180,6 +189,15 @@ export class CrisisSystem {
       }
     }
 
+    // 危机解决后触发后续事件
+    if (
+      crisis.postEventId &&
+      crisis.postEventProbability &&
+      Math.random() < crisis.postEventProbability
+    ) {
+      this.eventSystem.triggerEvent(crisis.postEventId)
+    }
+
     challenge.pendingCrisis = null
     this.crisisCooldown =
       CRISIS_BASE_COOLDOWN +
@@ -228,9 +246,10 @@ export class CrisisSystem {
 
     if (available.length === 0) return null
 
-    // 按概率加权选择
+    // 按概率加权选择，事件修正影响危机概率
     for (const template of available) {
-      const prob = template.baseProbability * crisisFreqMult
+      const eventMod = this.eventSystem.getCrisisModifier(template.id)
+      const prob = template.baseProbability * crisisFreqMult * eventMod
       if (Math.random() < prob) return template
     }
 
@@ -245,22 +264,24 @@ export class CrisisSystem {
       return false
     }
 
+    // 检查所有要求的预防设施是否存在
+    for (const facilityType of crisis.preventedByFacilities) {
+      if (!this.hasFacility(facilityType)) return false
+    }
+
     const state = this.stateManager.getState()
-    const avgResistance = state.facilities.avgCrisisResistance
+    const avgResistance = state.buildingEffects.avgCrisisResistance
     return avgResistance >= (crisis.preventionThreshold ?? 0.5)
   }
 
-  hasFacility(facilityType: TileType): boolean {
+  hasFacility(facilityId: BuildingId): boolean {
     const state = this.stateManager.getState()
     const { map } = state
     for (let y = 0; y < MAP_HEIGHT; y++) {
       for (let x = 0; x < MAP_WIDTH; x++) {
-        if (
-          map.tiles[y][x].type === facilityType &&
-          map.tiles[y][x].connected
-        ) {
-          return true
-        }
+        const tile = map.tiles[y][x]
+        if (!tile.connected) continue
+        if (tile.buildingId === facilityId) return true
       }
     }
     return false
@@ -268,7 +289,7 @@ export class CrisisSystem {
 
   private updateChallengeConditions(
     challenge: ChallengeState,
-    state: import('shared/game-types').GameState
+    state: import('shared/types').GameState
   ): void {
     const { economy, time } = state
 
@@ -321,7 +342,7 @@ export class CrisisSystem {
     }
   }
 
-  private calculateScore(state: import('shared/game-types').GameState): number {
+  private calculateScore(state: import('shared/types').GameState): number {
     const { economy, time, money } = state
     return Math.floor(
       economy.population * 10 +

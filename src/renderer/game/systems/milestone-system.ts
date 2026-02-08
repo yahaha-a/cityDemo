@@ -1,29 +1,30 @@
-import {
-  TileType,
-  type MilestoneState,
-  type MilestoneReward,
-} from 'shared/game-types'
+import type { MilestoneState, MilestoneReward } from 'shared/types'
+import { getBuildingDef } from '../config/building-defs'
 import type { GameStateManager } from '../engine/game-state'
+import type { IGameSystem, SystemRegistry } from '../engine/system-registry'
 import type { EventSystem } from './event-system'
-import type { MapSystem } from './map-system'
-import { MILESTONES, SATISFACTION_STREAK_THRESHOLD } from '../constants'
+import { MILESTONES, SATISFACTION_STREAK_THRESHOLD } from '../config'
+import { MAP_WIDTH, MAP_HEIGHT } from '../config'
 
 /**
  * 里程碑系统 - 目标追踪和奖励发放
  */
-export class MilestoneSystem {
+export class MilestoneSystem implements IGameSystem {
+  readonly id = 'milestone'
   private stateManager: GameStateManager
-  private eventSystem: EventSystem
-  private mapSystem: MapSystem
+  private eventSystem!: EventSystem
 
-  constructor(
-    stateManager: GameStateManager,
-    eventSystem: EventSystem,
-    mapSystem: MapSystem
-  ) {
+  constructor(stateManager: GameStateManager, eventSystem?: EventSystem) {
     this.stateManager = stateManager
-    this.eventSystem = eventSystem
-    this.mapSystem = mapSystem
+    if (eventSystem) this.eventSystem = eventSystem
+  }
+
+  init(registry: SystemRegistry): void {
+    this.eventSystem = registry.get<EventSystem>('event')
+  }
+
+  processDailyTick(): void {
+    this.processDailyMilestones()
   }
 
   /** 每日里程碑检查 */
@@ -66,11 +67,20 @@ export class MilestoneSystem {
           met = ms.cumulativeIncome >= condition.threshold
           break
         case 'building_count': {
-          const counts = this.mapSystem.countTiles()
-          const buildingCount =
-            counts[TileType.Residential] +
-            counts[TileType.Commercial] +
-            counts[TileType.Industrial]
+          const { map } = state
+          let buildingCount = 0
+          for (let y = 0; y < MAP_HEIGHT; y++) {
+            for (let x = 0; x < MAP_WIDTH; x++) {
+              const tile = map.tiles[y][x]
+              const bid = tile.buildingId
+              if (bid === 'empty' || bid === 'road') continue
+              const def = getBuildingDef(bid)
+              if (!def) continue
+              // 多格建筑只计算 origin
+              if (tile.structureRole === 'part') continue
+              buildingCount++
+            }
+          }
           met = buildingCount >= condition.threshold
           break
         }
@@ -122,6 +132,10 @@ export class MilestoneSystem {
         if (reward.eventId) {
           this.eventSystem.unlockEvent(reward.eventId)
         }
+        break
+      case 'unlock_building':
+        // 建筑解锁通过 milestones.achieved 自动生效
+        // （建筑定义的 unlockCondition.type === 'milestone' 会检查此列表）
         break
     }
   }

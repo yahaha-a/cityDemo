@@ -1,14 +1,17 @@
-import type { TechNode } from 'shared/game-types'
+import type { TechNode } from 'shared/types'
 
 export const TECH_TREE: TechNode[] = [
   // Tier 1
   {
     id: 'basic_infrastructure',
     name: '基础设施',
-    description: '掌握城市基础设施建设技术，解锁消防局',
+    description: '掌握城市基础设施建设技术，解锁消防局和仓储中心',
     tier: 1,
     rpCost: 30,
-    effects: [{ type: 'unlock_building', target: 'fire_station' }],
+    effects: [
+      { type: 'unlock_building', target: 'fire_station' },
+      { type: 'unlock_building', target: 'warehouse' },
+    ],
     prerequisites: [],
   },
   {
@@ -23,10 +26,13 @@ export const TECH_TREE: TechNode[] = [
   {
     id: 'urban_planning',
     name: '城市规划',
-    description: '掌握城市规划技术，解锁公园',
+    description: '掌握城市规划技术，解锁公园和公寓楼',
     tier: 1,
     rpCost: 35,
-    effects: [{ type: 'unlock_building', target: 'park' }],
+    effects: [
+      { type: 'unlock_building', target: 'park' },
+      { type: 'unlock_building', target: 'apartment' },
+    ],
     prerequisites: [],
   },
   // Tier 2
@@ -51,10 +57,12 @@ export const TECH_TREE: TechNode[] = [
   {
     id: 'commercial_theory',
     name: '商业理论',
-    description: '商业收入永久 +10%',
+    description: '解锁写字楼和商场，商业收入永久 +10%',
     tier: 2,
     rpCost: 60,
     effects: [
+      { type: 'unlock_building', target: 'office' },
+      { type: 'unlock_building', target: 'mall' },
       { type: 'permanent_multiplier', target: 'commercial_income', value: 1.1 },
     ],
     prerequisites: ['urban_planning'],
@@ -68,14 +76,24 @@ export const TECH_TREE: TechNode[] = [
     effects: [{ type: 'unlock_building', target: 'power_plant' }],
     prerequisites: ['basic_infrastructure'],
   },
+  {
+    id: 'terraforming_basics',
+    name: '基础地形工程',
+    description: '掌握地形改造基础技术，解锁平整地形和开挖水道',
+    tier: 2,
+    rpCost: 75,
+    effects: [],
+    prerequisites: ['basic_infrastructure'],
+  },
   // Tier 3
   {
     id: 'advanced_manufacturing',
     name: '先进制造',
-    description: '工业效率永久 +15%',
+    description: '解锁重工业，工业效率永久 +15%',
     tier: 3,
     rpCost: 150,
     effects: [
+      { type: 'unlock_building', target: 'heavy_industry' },
       {
         type: 'permanent_multiplier',
         target: 'industrial_efficiency',
@@ -108,6 +126,15 @@ export const TECH_TREE: TechNode[] = [
     ],
     prerequisites: ['commercial_theory'],
   },
+  {
+    id: 'advanced_terraforming',
+    name: '高级地形工程',
+    description: '解锁填水造陆和堆土造丘',
+    tier: 3,
+    rpCost: 140,
+    effects: [],
+    prerequisites: ['terraforming_basics'],
+  },
   // Tier 4 - Specializations
   {
     id: 'industrial_mastery',
@@ -139,10 +166,13 @@ export const TECH_TREE: TechNode[] = [
   {
     id: 'balanced_development',
     name: '均衡发展',
-    description: '解锁均衡城市特色路线',
+    description: '解锁均衡城市特色路线和住宅小区',
     tier: 4,
     rpCost: 200,
-    effects: [{ type: 'unlock_specialization', target: 'balanced' }],
+    effects: [
+      { type: 'unlock_specialization', target: 'balanced' },
+      { type: 'unlock_building', target: 'residential_complex' },
+    ],
     prerequisites: ['advanced_manufacturing', 'education_reform'],
   },
 ]
