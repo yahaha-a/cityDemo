@@ -1,4 +1,4 @@
-import type { ToolType, TimeSpeed, GameState } from 'shared/types'
+import type { ToolType, TimeSpeed, GameState, MilestoneReward } from 'shared/types'
 import type { BuildingId } from 'shared/types/building-defs'
 import type { GameLoop } from '../engine/game-loop'
 import type { StateKey } from '../engine/game-state'
@@ -36,6 +36,10 @@ export interface GameEngineFacade {
   // === 危机系统 ===
   resolveCrisis(optionId: string): boolean
   hasFacility(facilityId: BuildingId): boolean
+  toggleChallengeMode(): void
+
+  // === 里程碑系统 ===
+  consumePendingReward(): MilestoneReward | null
 
   // === 特色系统 ===
   chooseSpecialization(specId: string): boolean

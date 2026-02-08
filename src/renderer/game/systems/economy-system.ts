@@ -16,13 +16,6 @@ import {
   MAP_WIDTH,
   MAP_HEIGHT,
   POP_CAPACITY_PER_RESIDENTIAL,
-  LABOR_PER_POP,
-  SERVICES_DEMAND_PER_POP,
-  SERVICES_PER_COMMERCIAL,
-  GOODS_DEMAND_PER_COMMERCIAL,
-  LABOR_DEMAND_PER_COMMERCIAL,
-  GOODS_PER_INDUSTRIAL,
-  LABOR_DEMAND_PER_INDUSTRIAL,
   BASE_RESIDENTIAL_TAX,
   BASE_COMMERCIAL_INCOME,
   BASE_INDUSTRIAL_INCOME,
@@ -35,11 +28,8 @@ import {
   SAT_WEIGHT_EMPLOYMENT,
   SAT_WEIGHT_GOODS,
   SAT_WEIGHT_BALANCE,
-  TERRAIN_INDUSTRIAL_OUTPUT_MULTIPLIER,
   WATER_ADJACENCY_SATISFACTION_BONUS,
   LEVEL_CAPACITY_MULTIPLIER,
-  LEVEL_OUTPUT_MULTIPLIER,
-  LEVEL_DEMAND_MULTIPLIER,
   LEVEL_INCOME_MULTIPLIER,
 } from '../config'
 import { ROAD_CONFIGS } from '../config/road'
@@ -101,11 +91,6 @@ interface TileCensus {
   resIncomeWeighted: number
   comIncomeWeighted: number
   indIncomeWeighted: number
-  goodsSupplyWeighted: number
-  goodsDemandWeighted: number
-  servicesSupplyWeighted: number
-  laborDemandComWeighted: number
-  laborDemandIndWeighted: number
   roadMaintenanceTotal: number
   connRes: number
   connCom: number
@@ -143,7 +128,6 @@ export class EconomySystem implements IGameSystem {
   private cachedCensus: TileCensus | null = null
   private lastCensusMapRef: unknown = null
   private lastCensusBuildingEffectsRef: unknown = null
-  private lastCensusMults: SystemMultipliers | null = null
 
   constructor(
     stateManager: GameStateManager,
@@ -233,35 +217,28 @@ export class EconomySystem implements IGameSystem {
     }
   }
 
-  /** 遍历地图瓦片，统一计算容量、供需、收入、道路维护等 */
+  /** 遍历地图瓦片，统一计算容量、收入、道路维护等 */
   private runTileCensus(mults: SystemMultipliers): TileCensus {
     const state = this.stateManager.getState()
     const { map, buildingEffects } = state
 
-    // 缓存命中：map 和 buildingEffects 引用及 mults 均未变则直接返回
+    // 缓存命中：map 和 buildingEffects 引用未变则直接返回
     if (
       this.cachedCensus &&
       map === this.lastCensusMapRef &&
-      buildingEffects === this.lastCensusBuildingEffectsRef &&
-      mults === this.lastCensusMults
+      buildingEffects === this.lastCensusBuildingEffectsRef
     ) {
       return this.cachedCensus
     }
 
     this.lastCensusMapRef = map
     this.lastCensusBuildingEffectsRef = buildingEffects
-    this.lastCensusMults = mults
 
     const census: TileCensus = {
       capacityWeighted: 0,
       resIncomeWeighted: 0,
       comIncomeWeighted: 0,
       indIncomeWeighted: 0,
-      goodsSupplyWeighted: 0,
-      goodsDemandWeighted: 0,
-      servicesSupplyWeighted: 0,
-      laborDemandComWeighted: 0,
-      laborDemandIndWeighted: 0,
       roadMaintenanceTotal: 0,
       connRes: 0,
       connCom: 0,
@@ -313,31 +290,14 @@ export class EconomySystem implements IGameSystem {
           case 'commercial':
             {
               census.connCom++
-              const li = tile.level - 1
-              const outMult = LEVEL_OUTPUT_MULTIPLIER[li]
-              const demMult = LEVEL_DEMAND_MULTIPLIER[li]
-              const incMult = LEVEL_INCOME_MULTIPLIER[li]
-              census.servicesSupplyWeighted += SERVICES_PER_COMMERCIAL * outMult
-              census.goodsDemandWeighted +=
-                GOODS_DEMAND_PER_COMMERCIAL * demMult
-              census.laborDemandComWeighted +=
-                LABOR_DEMAND_PER_COMMERCIAL * demMult
+              const incMult = LEVEL_INCOME_MULTIPLIER[tile.level - 1]
               census.comIncomeWeighted += BASE_COMMERCIAL_INCOME * incMult
             }
             break
           case 'industrial':
             {
               census.connInd++
-              const li = tile.level - 1
-              const outMult = LEVEL_OUTPUT_MULTIPLIER[li]
-              const demMult = LEVEL_DEMAND_MULTIPLIER[li]
-              const incMult = LEVEL_INCOME_MULTIPLIER[li]
-              const terrainMult =
-                TERRAIN_INDUSTRIAL_OUTPUT_MULTIPLIER[tile.terrain]
-              census.goodsSupplyWeighted +=
-                GOODS_PER_INDUSTRIAL * outMult * terrainMult
-              census.laborDemandIndWeighted +=
-                LABOR_DEMAND_PER_INDUSTRIAL * demMult
+              const incMult = LEVEL_INCOME_MULTIPLIER[tile.level - 1]
               census.indIncomeWeighted += BASE_INDUSTRIAL_INCOME * incMult
             }
             break
@@ -354,16 +314,14 @@ export class EconomySystem implements IGameSystem {
   /** 统一级联效率、收入/支出计算 */
   private computeEconomics(
     census: TileCensus,
-    mults: SystemMultipliers,
-    currentPopulation: number
+    mults: SystemMultipliers
   ): EconomicsResult {
     const { buildingEffects } = this.stateManager.getState()
+    const res = buildingEffects.resources
 
-    const laborSupply =
-      currentPopulation * LABOR_PER_POP * mults.evtLaborSupplyMult
-    const laborDemand =
-      (census.laborDemandComWeighted + census.laborDemandIndWeighted) *
-      mults.evtLaborDemandMult
+    // 使用 BuildingEffectSystem 计算的基础资源数据，再叠加系统乘数
+    const laborSupply = res.laborSupply * mults.evtLaborSupplyMult
+    const laborDemand = res.laborDemand * mults.evtLaborDemandMult
 
     // 工业产出乘数: 事件 × 政策 × 危机 × 特色 × 科技 × 协同 × 全产出
     const industrialProdMult =
@@ -375,8 +333,8 @@ export class EconomySystem implements IGameSystem {
       mults.synergyEffInd *
       mults.specAllProdMult
 
-    const goodsSupply = census.goodsSupplyWeighted * industrialProdMult
-    const goodsDemand = census.goodsDemandWeighted * mults.evtGoodsDemandMult
+    const goodsSupply = res.goodsSupply * industrialProdMult
+    const goodsDemand = res.goodsDemand * mults.evtGoodsDemandMult
 
     // 商业产出乘数
     const commercialProdMult =
@@ -387,9 +345,8 @@ export class EconomySystem implements IGameSystem {
       mults.synergyEffCom *
       mults.specAllProdMult
 
-    const servicesSupply = census.servicesSupplyWeighted * commercialProdMult
-    const servicesDemand =
-      currentPopulation * SERVICES_DEMAND_PER_POP * mults.evtServicesDemandMult
+    const servicesSupply = res.servicesSupply * commercialProdMult
+    const servicesDemand = res.servicesDemand * mults.evtServicesDemandMult
 
     // 级联效率
     const laborRatio = safeRatio(laborSupply, laborDemand)
@@ -423,13 +380,17 @@ export class EconomySystem implements IGameSystem {
       totalIncomeMult
 
     // 支出: 道路维护 + 建筑维护
+    const specAllCostMult =
+      this.specializationSystem.getEffectValue('all_cost_multiplier') ?? 1
     const roadExpenses =
       census.roadMaintenanceTotal *
       mults.evtRoadMaintMult *
       mults.policyRoadMaintMult
     const buildingMaintenance = buildingEffects.totalMaintenance
     const expenses =
-      (roadExpenses + buildingMaintenance) * mults.policyExpenseMult
+      (roadExpenses + buildingMaintenance) *
+      mults.policyExpenseMult *
+      specAllCostMult
     const netRevenue = Math.round(income - expenses)
 
     return {
@@ -450,20 +411,15 @@ export class EconomySystem implements IGameSystem {
    */
   processDailyEconomy(): void {
     const state = this.stateManager.getState()
-    const { economy } = state
+    const { economy, buildingEffects } = state
     const currentPopulation = economy.population
     const prevSatisfaction = economy.satisfaction
 
     const mults = this.collectMultipliers()
     const census = this.runTileCensus(mults)
-    const econ = this.computeEconomics(census, mults, currentPopulation)
+    const econ = this.computeEconomics(census, mults)
 
     // === 满意度（含政策、协同、设施、特色修正） ===
-    const employmentRatio = safeRatio(
-      currentPopulation * LABOR_PER_POP * mults.evtLaborSupplyMult,
-      (census.laborDemandComWeighted + census.laborDemandIndWeighted) *
-        mults.evtLaborDemandMult
-    )
     const avgEfficiency =
       (econ.residentialEff + econ.commercialEff + econ.industrialEff) / 3
 
@@ -473,7 +429,7 @@ export class EconomySystem implements IGameSystem {
     } else {
       rawSatisfaction =
         (econ.servicesRatio * SAT_WEIGHT_SERVICES +
-          employmentRatio * SAT_WEIGHT_EMPLOYMENT +
+          econ.laborRatio * SAT_WEIGHT_EMPLOYMENT +
           econ.goodsRatio * SAT_WEIGHT_GOODS +
           avgEfficiency * SAT_WEIGHT_BALANCE) *
         100
@@ -563,15 +519,13 @@ export class EconomySystem implements IGameSystem {
 
     const resources: ResourceMarket = {
       labor: {
-        supply: currentPopulation * LABOR_PER_POP * mults.evtLaborSupplyMult,
-        demand:
-          (census.laborDemandComWeighted + census.laborDemandIndWeighted) *
-          mults.evtLaborDemandMult,
+        supply: buildingEffects.resources.laborSupply * mults.evtLaborSupplyMult,
+        demand: buildingEffects.resources.laborDemand * mults.evtLaborDemandMult,
         ratio: econ.laborRatio,
       },
       goods: {
         supply:
-          census.goodsSupplyWeighted *
+          buildingEffects.resources.goodsSupply *
           mults.evtGoodsSupplyMult *
           mults.policyIndustrialMult *
           mults.crisisIndustrialMult *
@@ -580,12 +534,12 @@ export class EconomySystem implements IGameSystem {
           mults.synergyEffInd *
           mults.specAllProdMult *
           econ.industrialEff,
-        demand: census.goodsDemandWeighted * mults.evtGoodsDemandMult,
+        demand: buildingEffects.resources.goodsDemand * mults.evtGoodsDemandMult,
         ratio: econ.goodsRatio,
       },
       services: {
         supply:
-          census.servicesSupplyWeighted *
+          buildingEffects.resources.servicesSupply *
           mults.evtServicesSupplyMult *
           mults.policyCommercialMult *
           mults.crisisServicesMult *
@@ -594,8 +548,7 @@ export class EconomySystem implements IGameSystem {
           mults.specAllProdMult *
           econ.commercialEff,
         demand:
-          currentPopulation *
-          SERVICES_DEMAND_PER_POP *
+          buildingEffects.resources.servicesDemand *
           mults.evtServicesDemandMult,
         ratio: econ.servicesRatio,
       },
@@ -666,7 +619,7 @@ export class EconomySystem implements IGameSystem {
 
     const mults = this.collectMultipliers()
     const census = this.runTileCensus(mults)
-    const econ = this.computeEconomics(census, mults, economy.population)
+    const econ = this.computeEconomics(census, mults)
 
     return {
       income: Math.round(econ.income),

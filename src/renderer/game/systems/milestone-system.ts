@@ -134,11 +134,8 @@ export class MilestoneSystem implements IGameSystem {
         }
         break
       case 'unlock_building':
-        // 里程碑解锁的建筑记录到 milestones.achieved 中
-        // 建筑系统通过 achievedMilestones 查找关联的 buildingId
-        if (reward.value) {
-          this.stateManager.addMoney(reward.value)
-        }
+        // 建筑解锁通过 milestones.achieved 自动生效
+        // （建筑定义的 unlockCondition.type === 'milestone' 会检查此列表）
         break
     }
   }

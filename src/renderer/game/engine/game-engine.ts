@@ -145,6 +145,14 @@ export class GameEngine implements GameEngineFacade {
   hasFacility(facilityId: BuildingId): boolean {
     return this.crisisSystem.hasFacility(facilityId)
   }
+  toggleChallengeMode(): void {
+    this.crisisSystem.toggleChallengeMode()
+  }
+
+  // === Facade: 里程碑系统 ===
+  consumePendingReward() {
+    return this.milestoneSystem.consumePendingReward()
+  }
 
   // === Facade: 特色系统 ===
   chooseSpecialization(specId: string): boolean {

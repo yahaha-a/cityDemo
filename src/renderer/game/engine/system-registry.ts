@@ -28,6 +28,11 @@ export class SystemRegistry {
 
   /** 定义每日处理顺序 */
   setTickOrder(ids: string[]): void {
+    for (const id of ids) {
+      if (!this.systems.has(id)) {
+        console.warn(`[SystemRegistry] tickOrder 中的系统 "${id}" 未注册`)
+      }
+    }
     this.tickOrder = ids
   }
 
@@ -43,7 +48,15 @@ export class SystemRegistry {
   /** 初始化所有系统（按注册顺序） */
   initAll(): void {
     for (const system of this.systems.values()) {
-      system.init?.(this)
+      try {
+        system.init?.(this)
+      } catch (err) {
+        console.error(
+          `[SystemRegistry] System "${system.id}" init failed:`,
+          err
+        )
+        throw err
+      }
     }
   }
 

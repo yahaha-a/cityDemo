@@ -20,6 +20,8 @@ import type { GameStateManager } from '../engine/game-state'
 import type { IGameSystem, SystemRegistry } from '../engine/system-registry'
 import type { RoadSystem } from './road-system'
 import type { MapSystem } from './map-system'
+import type { PolicySystem } from './policy-system'
+import type { SpecializationSystem } from './specialization-system'
 import { isInBounds } from '../input/coordinate-utils'
 import { MAP_WIDTH, MAP_HEIGHT } from '../config'
 
@@ -33,6 +35,8 @@ export class BuildingSystemV2 implements IGameSystem {
   private stateManager: GameStateManager
   private roadSystem!: RoadSystem
   private mapSystem!: MapSystem
+  private policySystem!: PolicySystem
+  private specializationSystem!: SpecializationSystem
 
   constructor(stateManager: GameStateManager) {
     this.stateManager = stateManager
@@ -41,6 +45,20 @@ export class BuildingSystemV2 implements IGameSystem {
   init(registry: SystemRegistry): void {
     this.roadSystem = registry.get<RoadSystem>('road')
     this.mapSystem = registry.get<MapSystem>('map')
+    this.policySystem = registry.get<PolicySystem>('policy')
+    this.specializationSystem =
+      registry.get<SpecializationSystem>('specialization')
+  }
+
+  /** 获取综合建造成本乘数（政策 + 专精） */
+  private getCostMultiplier(): number {
+    const policyBuildCost =
+      this.policySystem.getAggregatedEffect('build_cost_multiplier') ?? 1
+    const specBuildCost =
+      this.specializationSystem.getEffectValue('build_cost_multiplier') ?? 1
+    const specAllCost =
+      this.specializationSystem.getEffectValue('all_cost_multiplier') ?? 1
+    return policyBuildCost * specBuildCost * specAllCost
   }
 
   /**
@@ -97,7 +115,7 @@ export class BuildingSystemV2 implements IGameSystem {
     const terrainMult = TERRAIN_BUILD_COST_MULTIPLIER[originTile.terrain]
     if (!Number.isFinite(terrainMult)) return false
 
-    const actualCost = Math.ceil(def.cost * terrainMult)
+    const actualCost = Math.ceil(def.cost * terrainMult * this.getCostMultiplier())
     if (!this.stateManager.spendMoney(actualCost)) return false
 
     if (footprint.length === 1) {
@@ -268,12 +286,33 @@ export class BuildingSystemV2 implements IGameSystem {
     const terrainMult = TERRAIN_BUILD_COST_MULTIPLIER[tile.terrain]
     const mult = Number.isFinite(terrainMult) ? terrainMult : 1
     const upgradeCost = Math.ceil(
-      def.cost * mult * UPGRADE_COST_MULTIPLIER[tile.level]
+      def.cost * mult * UPGRADE_COST_MULTIPLIER[tile.level] * this.getCostMultiplier()
     )
 
     if (!this.stateManager.spendMoney(upgradeCost)) return false
 
-    this.stateManager.upgradeTileLevel(x, y)
+    // 多格建筑：同步升级所有关联格子和结构实例
+    if (tile.structureId) {
+      const instance = state.structures.instances[tile.structureId]
+      if (instance) {
+        const footprint = rotateFootprint(def.footprint, instance.rotation ?? 0)
+        this.stateManager.batch(() => {
+          for (const { dx, dy } of footprint) {
+            this.stateManager.upgradeTileLevel(
+              instance.originX + dx,
+              instance.originY + dy
+            )
+          }
+          this.stateManager.registerStructure({
+            ...instance,
+            level: tile.level + 1,
+          })
+        })
+      }
+    } else {
+      this.stateManager.upgradeTileLevel(x, y)
+    }
+
     this.mapSystem.invalidateMapStats()
     return true
   }
@@ -330,14 +369,14 @@ export class BuildingSystemV2 implements IGameSystem {
   }
 
   /**
-   * 获取建造成本
+   * 获取建造成本（含所有乘数）
    */
   getBuildCost(buildingId: BuildingId, terrain: TerrainType): number | null {
     const def = getBuildingDef(buildingId)
     if (!def) return null
     const terrainMult = TERRAIN_BUILD_COST_MULTIPLIER[terrain]
     if (!Number.isFinite(terrainMult)) return null
-    return Math.ceil(def.cost * terrainMult)
+    return Math.ceil(def.cost * terrainMult * this.getCostMultiplier())
   }
 
   private buildRoad(x: number, y: number, tool: ToolType): boolean {
@@ -355,7 +394,7 @@ export class BuildingSystemV2 implements IGameSystem {
       if (config.terrainRestrictions.includes(currentTile.terrain)) return false
     }
 
-    if (!this.stateManager.spendMoney(config.buildCost)) return false
+    if (!this.stateManager.spendMoney(Math.ceil(config.buildCost * this.getCostMultiplier()))) return false
 
     this.stateManager.setTileByBuildingId(x, y, 'road', 1, roadType)
     this.roadSystem.updateLocalConnections(x, y)
@@ -378,7 +417,7 @@ export class BuildingSystemV2 implements IGameSystem {
       if (!state.tech.researched.includes(action.unlockTech)) return false
     }
 
-    if (!this.stateManager.spendMoney(action.cost)) return false
+    if (!this.stateManager.spendMoney(Math.ceil(action.cost * this.getCostMultiplier()))) return false
 
     this.stateManager.setTerrainAt(x, y, action.toTerrain, tile.terrain)
     this.mapSystem.invalidateMapStats()
