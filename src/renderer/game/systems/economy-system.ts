@@ -139,6 +139,12 @@ export class EconomySystem implements IGameSystem {
   private crisisSystem!: CrisisSystem
   private specializationSystem!: SpecializationSystem
 
+  /** tileCensus 缓存 */
+  private cachedCensus: TileCensus | null = null
+  private lastCensusMapRef: unknown = null
+  private lastCensusBuildingEffectsRef: unknown = null
+  private lastCensusMults: SystemMultipliers | null = null
+
   constructor(
     stateManager: GameStateManager,
     eventSystem?: EventSystem,
@@ -232,6 +238,20 @@ export class EconomySystem implements IGameSystem {
     const state = this.stateManager.getState()
     const { map, buildingEffects } = state
 
+    // 缓存命中：map 和 buildingEffects 引用及 mults 均未变则直接返回
+    if (
+      this.cachedCensus &&
+      map === this.lastCensusMapRef &&
+      buildingEffects === this.lastCensusBuildingEffectsRef &&
+      mults === this.lastCensusMults
+    ) {
+      return this.cachedCensus
+    }
+
+    this.lastCensusMapRef = map
+    this.lastCensusBuildingEffectsRef = buildingEffects
+    this.lastCensusMults = mults
+
     const census: TileCensus = {
       capacityWeighted: 0,
       resIncomeWeighted: 0,
@@ -258,8 +278,7 @@ export class EconomySystem implements IGameSystem {
 
         if (bid === 'road') {
           const roadType = tile.roadType ?? RoadType.Normal
-          census.roadMaintenanceTotal +=
-            ROAD_CONFIGS[roadType].maintenanceCost
+          census.roadMaintenanceTotal += ROAD_CONFIGS[roadType].maintenanceCost
           continue
         }
 
@@ -282,7 +301,7 @@ export class EconomySystem implements IGameSystem {
                 mults.specCapacityMult *
                 facCapMult
               census.resIncomeWeighted += BASE_RESIDENTIAL_TAX * incMult
-              if (this.hasAdjacentWater(x, y)) {
+              if (this.hasAdjacentWater(x, y, map)) {
                 census.waterAdjacentResCount++
               }
               if (tileEffect) {
@@ -328,6 +347,7 @@ export class EconomySystem implements IGameSystem {
       }
     }
 
+    this.cachedCensus = census
     return census
   }
 
@@ -609,8 +629,11 @@ export class EconomySystem implements IGameSystem {
     return this.eventSystem.getActiveMultiplier(target) ?? 1
   }
 
-  private hasAdjacentWater(x: number, y: number): boolean {
-    const { map } = this.stateManager.getState()
+  private hasAdjacentWater(
+    x: number,
+    y: number,
+    map: { tiles: Array<Array<{ terrain: TerrainType }>> }
+  ): boolean {
     const dirs = [
       [0, -1],
       [0, 1],

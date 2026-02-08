@@ -103,22 +103,22 @@ export function TileTooltip() {
           >
             {tileData.connected ? '已连接道路' : '未连接道路'}
           </div>
-          {tileData.connected && (() => {
-            const category = buildingIdToCategory(bid)
-            if (
-              category === 'residential' ||
-              category === 'commercial' ||
-              category === 'industrial'
-            ) {
-              return (
-                <div className="text-[var(--game-text-muted)]">
-                  效率:{' '}
-                  {Math.round(efficiencyByType[category] * 100)}%
-                </div>
-              )
-            }
-            return null
-          })()}
+          {tileData.connected &&
+            (() => {
+              const category = buildingIdToCategory(bid)
+              if (
+                category === 'residential' ||
+                category === 'commercial' ||
+                category === 'industrial'
+              ) {
+                return (
+                  <div className="text-[var(--game-text-muted)]">
+                    效率: {Math.round(efficiencyByType[category] * 100)}%
+                  </div>
+                )
+              }
+              return null
+            })()}
           {tileData.level < buildingDef.maxLevel && (
             <div className="text-[var(--game-text-muted)] text-[10px]">
               升级费用: $

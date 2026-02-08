@@ -1,4 +1,4 @@
-import { useCallback } from 'react'
+import { useCallback, memo } from 'react'
 import { Canvas } from '@react-three/fiber'
 import { CameraRig } from './CameraRig'
 import { Lighting } from './Lighting'
@@ -11,6 +11,12 @@ import { InputPlane } from './InputPlane'
 import { Effects } from './Effects'
 import { useGameStore } from '../stores/game-store'
 import type { GameEngine } from '../engine/game-engine'
+
+const MemoTerrainGrid = memo(TerrainGrid)
+const MemoRoadNetwork = memo(RoadNetwork)
+const MemoBuildings = memo(Buildings)
+const MemoBuildingPreview = memo(BuildingPreview)
+const MemoHoverIndicator = memo(HoverIndicator)
 
 export function CityScene() {
   const handlePointerLeave = useCallback(() => {
@@ -45,11 +51,11 @@ export function CityScene() {
       <CameraRig />
       <Lighting />
 
-      <TerrainGrid />
-      <RoadNetwork />
-      <Buildings />
-      <BuildingPreview />
-      <HoverIndicator />
+      <MemoTerrainGrid />
+      <MemoRoadNetwork />
+      <MemoBuildings />
+      <MemoBuildingPreview />
+      <MemoHoverIndicator />
       <InputPlane />
 
       <Effects />

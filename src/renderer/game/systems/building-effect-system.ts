@@ -2,7 +2,7 @@ import type {
   BuildingEffectState,
   TileBuildingEffect,
 } from 'shared/types/building-effects'
-import type { BuildingCategory } from 'shared/types/building-defs'
+import type { BuildingCategory, BuildingId } from 'shared/types/building-defs'
 import type { GameStateManager } from '../engine/game-state'
 import type { IGameSystem, SystemRegistry } from '../engine/system-registry'
 import { MAP_WIDTH, MAP_HEIGHT } from '../config'
@@ -25,6 +25,13 @@ function createDefaultTileEffect(): TileBuildingEffect {
   }
 }
 
+/** 建筑位置条目 */
+interface BuildingPosition {
+  x: number
+  y: number
+  buildingId: BuildingId
+}
+
 /**
  * 建筑效果系统 — 替代 FacilitySystem + SynergySystem + ProductionChainSystem
  * 每日 tick 中统一计算区域效果、协同效应、资源供需
@@ -41,6 +48,9 @@ export class BuildingEffectSystem implements IGameSystem {
   private tagIndex = new Map<string, Array<{ x: number; y: number }>>()
   private lastMapRef: unknown = null
 
+  /** 建筑位置索引 — 仅包含非 empty/road 的 origin 格 */
+  private buildingPositions: BuildingPosition[] = []
+
   constructor(stateManager: GameStateManager) {
     this.stateManager = stateManager
   }
@@ -52,6 +62,9 @@ export class BuildingEffectSystem implements IGameSystem {
   processDailyTick(): void {
     const state = this.stateManager.getState()
     const { map } = state
+
+    // 确保 tagIndex 和 buildingPositions 是最新的
+    this.ensureTagIndex()
 
     const tileEffects: Record<string, TileBuildingEffect> = {}
     let totalMaintenance = 0
@@ -68,120 +81,111 @@ export class BuildingEffectSystem implements IGameSystem {
     let servicesDemand = 0
 
     // === Pass 1 — 区域效果（替代 FacilitySystem） ===
-    for (let y = 0; y < MAP_HEIGHT; y++) {
-      for (let x = 0; x < MAP_WIDTH; x++) {
-        const tile = map.tiles[y][x]
-        const buildingId = tile.buildingId
-        if (buildingId === 'empty' || buildingId === 'road') continue
+    // 使用建筑位置索引代替全图遍历
+    for (const { x, y } of this.buildingPositions) {
+      const tile = map.tiles[y][x]
+      const buildingId = tile.buildingId
 
-        const def = getBuildingDef(buildingId)
-        if (!def) continue
+      const def = getBuildingDef(buildingId)
+      if (!def) continue
 
-        // 多格建筑：只处理 origin 格，或无 structureId 的格（单格建筑）
-        if (tile.structureRole === 'part') continue
+      const levelMult = LEVEL_MULTIPLIER[(tile.level || 1) - 1] ?? 1
 
-        const levelMult = LEVEL_MULTIPLIER[(tile.level || 1) - 1] ?? 1
+      // 累加维护费
+      totalMaintenance += def.maintenance * levelMult
 
-        // 累加维护费
-        totalMaintenance += def.maintenance * levelMult
+      // 区域效果
+      if (def.areaRadius > 0 && def.areaEffects.length > 0 && tile.connected) {
+        const radius = def.areaRadius
+        for (let dy = -radius; dy <= radius; dy++) {
+          for (let dx = -radius; dx <= radius; dx++) {
+            if (dx === 0 && dy === 0) continue
+            if (Math.abs(dx) + Math.abs(dy) > radius) continue
 
-        // 区域效果
-        if (
-          def.areaRadius > 0 &&
-          def.areaEffects.length > 0 &&
-          tile.connected
-        ) {
-          const radius = def.areaRadius
-          for (let dy = -radius; dy <= radius; dy++) {
-            for (let dx = -radius; dx <= radius; dx++) {
-              if (dx === 0 && dy === 0) continue
-              if (Math.abs(dx) + Math.abs(dy) > radius) continue
+            const tx = x + dx
+            const ty = y + dy
+            if (tx < 0 || tx >= MAP_WIDTH || ty < 0 || ty >= MAP_HEIGHT)
+              continue
 
-              const tx = x + dx
-              const ty = y + dy
-              if (tx < 0 || tx >= MAP_WIDTH || ty < 0 || ty >= MAP_HEIGHT)
+            const target = map.tiles[ty][tx]
+            const targetId = target.buildingId
+            if (targetId === 'empty' || targetId === 'road') continue
+            if (!target.connected) continue
+
+            const targetDef = getBuildingDef(targetId)
+            if (!targetDef) continue
+
+            for (const effect of def.areaEffects) {
+              // 检查 targetCategory 过滤
+              if (
+                effect.targetCategory &&
+                targetDef.category !== effect.targetCategory
+              )
                 continue
 
-              const target = map.tiles[ty][tx]
-              const targetId = target.buildingId
-              if (targetId === 'empty' || targetId === 'road') continue
-              if (!target.connected) continue
+              const key = `${tx},${ty}`
+              if (!tileEffects[key]) {
+                tileEffects[key] = createDefaultTileEffect()
+              }
 
-              const targetDef = getBuildingDef(targetId)
-              if (!targetDef) continue
-
-              for (const effect of def.areaEffects) {
-                // 检查 targetCategory 过滤
-                if (
-                  effect.targetCategory &&
-                  targetDef.category !== effect.targetCategory
-                )
-                  continue
-
-                const key = `${tx},${ty}`
-                if (!tileEffects[key]) {
-                  tileEffects[key] = createDefaultTileEffect()
-                }
-
-                const te = tileEffects[key]
-                switch (effect.type) {
-                  case 'satisfaction':
-                    te.satisfactionMod += effect.value
-                    break
-                  case 'income_multiplier':
-                    te.incomeMultiplier *= effect.value
-                    break
-                  case 'efficiency_multiplier':
-                    te.efficiencyMultiplier *= effect.value
-                    break
-                  case 'crisis_resistance':
-                    te.crisisResistance += effect.value
-                    crisisResistanceSum += effect.value
-                    crisisResistanceCount++
-                    break
-                  case 'capacity_multiplier':
-                    te.capacityMultiplier *= effect.value
-                    break
-                  case 'research_points':
-                    te.researchPoints += effect.value
-                    totalResearchPoints += effect.value
-                    break
-                }
+              const te = tileEffects[key]
+              switch (effect.type) {
+                case 'satisfaction':
+                  te.satisfactionMod += effect.value
+                  break
+                case 'income_multiplier':
+                  te.incomeMultiplier *= effect.value
+                  break
+                case 'efficiency_multiplier':
+                  te.efficiencyMultiplier *= effect.value
+                  break
+                case 'crisis_resistance':
+                  te.crisisResistance += effect.value
+                  crisisResistanceSum += effect.value
+                  crisisResistanceCount++
+                  break
+                case 'capacity_multiplier':
+                  te.capacityMultiplier *= effect.value
+                  break
+                case 'research_points':
+                  te.researchPoints += effect.value
+                  totalResearchPoints += effect.value
+                  break
               }
             }
           }
+        }
 
-          // 处理非空间效果（crisis_resistance 和 research_points 也累加在此）
-          for (const effect of def.areaEffects) {
-            if (effect.type === 'crisis_resistance' && !effect.targetCategory) {
-              crisisResistanceSum += effect.value
-              crisisResistanceCount++
-            }
-            if (effect.type === 'research_points' && !effect.targetCategory) {
-              totalResearchPoints += effect.value
-            }
+        // 处理非空间效果（crisis_resistance 和 research_points 也累加在此）
+        for (const effect of def.areaEffects) {
+          if (effect.type === 'crisis_resistance' && !effect.targetCategory) {
+            crisisResistanceSum += effect.value
+            crisisResistanceCount++
+          }
+          if (effect.type === 'research_points' && !effect.targetCategory) {
+            totalResearchPoints += effect.value
           }
         }
+      }
 
-        // === Pass 3 — 资源汇总（同时在 Pass 1 循环中处理） ===
-        if (tile.connected) {
-          // 产出
-          if (def.produces.labor) laborSupply += def.produces.labor * levelMult
-          if (def.produces.goods) goodsSupply += def.produces.goods * levelMult
-          if (def.produces.services)
-            servicesSupply += def.produces.services * levelMult
+      // === Pass 3 — 资源汇总（同时在 Pass 1 循环中处理） ===
+      if (tile.connected) {
+        // 产出
+        if (def.produces.labor) laborSupply += def.produces.labor * levelMult
+        if (def.produces.goods) goodsSupply += def.produces.goods * levelMult
+        if (def.produces.services)
+          servicesSupply += def.produces.services * levelMult
 
-          // 消耗
-          if (def.consumes.labor) laborDemand += def.consumes.labor * levelMult
-          if (def.consumes.goods) goodsDemand += def.consumes.goods * levelMult
-          if (def.consumes.services)
-            servicesDemand += def.consumes.services * levelMult
-        }
+        // 消耗
+        if (def.consumes.labor) laborDemand += def.consumes.labor * levelMult
+        if (def.consumes.goods) goodsDemand += def.consumes.goods * levelMult
+        if (def.consumes.services)
+          servicesDemand += def.consumes.services * levelMult
       }
     }
 
     // === Pass 2 — 协同效应（替代 SynergySystem） ===
-    this.rebuildTagIndex()
+    // tagIndex 已在 processDailyTick 开头通过 ensureTagIndex() 更新
 
     const stackCounts: Record<number, Record<string, number>> = {}
 
@@ -370,26 +374,85 @@ export class BuildingEffectSystem implements IGameSystem {
     return Math.max(0, baseRadius + override)
   }
 
-  /** 重建 tag 空间索引 */
-  private rebuildTagIndex(): void {
+  /** 确保 tag 空间索引和建筑位置索引是最新的（增量更新） */
+  private ensureTagIndex(): void {
     const state = this.stateManager.getState()
     const { map } = state
 
     if (map === this.lastMapRef) return
     this.lastMapRef = map
 
-    this.tagIndex.clear()
+    const mapChanges = this.stateManager.getMapChanges()
 
-    for (let y = 0; y < MAP_HEIGHT; y++) {
-      for (let x = 0; x < MAP_WIDTH; x++) {
+    if (mapChanges.full) {
+      // 全量重建
+      this.tagIndex.clear()
+      this.buildingPositions = []
+
+      for (let y = 0; y < MAP_HEIGHT; y++) {
+        for (let x = 0; x < MAP_WIDTH; x++) {
+          const tile = map.tiles[y][x]
+          const buildingId = tile.buildingId
+          if (buildingId === 'empty' || buildingId === 'road') continue
+
+          // 多格建筑只处理 origin
+          if (tile.structureRole === 'part') continue
+
+          this.buildingPositions.push({ x, y, buildingId })
+
+          if (!tile.connected) continue
+
+          const def = getBuildingDef(buildingId)
+          if (!def) continue
+
+          for (const tag of def.synergyTags) {
+            let list = this.tagIndex.get(tag)
+            if (!list) {
+              list = []
+              this.tagIndex.set(tag, list)
+            }
+            list.push({ x, y })
+          }
+        }
+      }
+    } else {
+      // 增量更新：只处理变更的 tile
+      for (const tileKey of mapChanges.tiles) {
+        const x = tileKey % MAP_WIDTH
+        const y = (tileKey - x) / MAP_WIDTH
+
+        // 从 buildingPositions 中移除旧条目
+        for (let i = this.buildingPositions.length - 1; i >= 0; i--) {
+          const pos = this.buildingPositions[i]
+          if (pos.x === x && pos.y === y) {
+            // swap-and-pop 移除
+            this.buildingPositions[i] =
+              this.buildingPositions[this.buildingPositions.length - 1]
+            this.buildingPositions.pop()
+            break
+          }
+        }
+
+        // 从 tagIndex 中移除旧条目
+        for (const [, list] of this.tagIndex) {
+          for (let i = list.length - 1; i >= 0; i--) {
+            if (list[i].x === x && list[i].y === y) {
+              list[i] = list[list.length - 1]
+              list.pop()
+              break
+            }
+          }
+        }
+
+        // 如果新 tile 有建筑则添加
         const tile = map.tiles[y][x]
-        if (!tile.connected) continue
-
         const buildingId = tile.buildingId
         if (buildingId === 'empty' || buildingId === 'road') continue
-
-        // 多格建筑只处理 origin
         if (tile.structureRole === 'part') continue
+
+        this.buildingPositions.push({ x, y, buildingId })
+
+        if (!tile.connected) continue
 
         const def = getBuildingDef(buildingId)
         if (!def) continue

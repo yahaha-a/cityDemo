@@ -84,9 +84,7 @@ const BUILDING_ID_CATEGORY: Record<BuildingId, BuildingCategory | null> = {
 }
 
 /** 获取 BuildingId 的分类 */
-export function buildingIdToCategory(
-  id: BuildingId,
-): BuildingCategory | null {
+export function buildingIdToCategory(id: BuildingId): BuildingCategory | null {
   return BUILDING_ID_CATEGORY[id]
 }
 
