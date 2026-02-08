@@ -1,5 +1,4 @@
 import type { MilestoneState, MilestoneReward } from 'shared/types'
-import { getTileBuildingId } from 'shared/types/building-compat'
 import { getBuildingDef } from '../config/building-defs'
 import type { GameStateManager } from '../engine/game-state'
 import type { IGameSystem, SystemRegistry } from '../engine/system-registry'
@@ -73,7 +72,7 @@ export class MilestoneSystem implements IGameSystem {
           for (let y = 0; y < MAP_HEIGHT; y++) {
             for (let x = 0; x < MAP_WIDTH; x++) {
               const tile = map.tiles[y][x]
-              const bid = getTileBuildingId(tile)
+              const bid = tile.buildingId
               if (bid === 'empty' || bid === 'road') continue
               const def = getBuildingDef(bid)
               if (!def) continue

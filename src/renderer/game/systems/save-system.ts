@@ -1,9 +1,26 @@
 import type { GameState, SaveData } from 'shared/types'
-import { DemandLevel, TerrainType, type TileType } from 'shared/types'
-import { TILE_TYPE_TO_BUILDING_ID } from 'shared/types/building-compat'
+import { DemandLevel, TerrainType } from 'shared/types'
 import type { GameStateManager } from '../engine/game-state'
 import type { IGameSystem } from '../engine/system-registry'
 import { EVENT_BASE_COOLDOWN, MAP_WIDTH, MAP_HEIGHT } from '../config'
+
+/**
+ * 旧存档中的 TileType 值映射到 BuildingId
+ * 仅用于加载旧版本存档时的迁移
+ */
+const LEGACY_TILE_TYPE_TO_BUILDING_ID: Record<string, string> = {
+  empty: 'empty',
+  road: 'road',
+  residential: 'house',
+  commercial: 'shop',
+  industrial: 'factory',
+  park: 'park',
+  school: 'school',
+  hospital: 'hospital',
+  fire_station: 'fire_station',
+  police_station: 'police_station',
+  power_plant: 'power_plant',
+}
 
 const SAVE_VERSION = '2.0.0'
 const STORAGE_KEY = 'city-demo-saves'
@@ -252,8 +269,9 @@ export class SaveSystem implements IGameSystem {
         for (let x = 0; x < MAP_WIDTH && x < map.tiles[y].length; x++) {
           const tile = map.tiles[y][x]
           if (tile.buildingId === undefined) {
-            const tileType = tile.type as TileType
-            tile.buildingId = TILE_TYPE_TO_BUILDING_ID[tileType] ?? 'empty'
+            const tileType = (tile.type as string) ?? 'empty'
+            tile.buildingId =
+              LEGACY_TILE_TYPE_TO_BUILDING_ID[tileType] ?? 'empty'
           }
         }
       }

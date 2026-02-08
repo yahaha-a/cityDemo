@@ -3,7 +3,6 @@ import type {
   Tile,
   StateListener,
   Camera,
-  TileType,
   ToolType,
   TimeSpeed,
   RoadType,
@@ -11,10 +10,6 @@ import type {
   StructureInstance,
 } from 'shared/types'
 import type { BuildingId } from 'shared/types/building-defs'
-import {
-  BUILDING_ID_TO_TILE_TYPE,
-  TILE_TYPE_TO_BUILDING_ID,
-} from 'shared/types/building-compat'
 import { CAMERA_MIN_ZOOM, CAMERA_MAX_ZOOM } from '../config'
 import { createInitialState, createInitialCamera } from './initial-state'
 
@@ -172,44 +167,23 @@ export class GameStateManager {
     this.markDirty('hoveredTile')
   }
 
-  setTileAt(
+  /** 通过 BuildingId 设置瓦片 */
+  setTileByBuildingId(
     x: number,
     y: number,
-    type: TileType,
+    buildingId: BuildingId,
     level = 1,
     roadType?: RoadType
   ): void {
     const existing = this.state.map.tiles[y][x]
     this.state.map.tiles[y][x] = {
-      type,
-      buildingId: TILE_TYPE_TO_BUILDING_ID[type],
-      x,
-      y,
-      level,
-      connected: false,
-      terrain: existing.terrain,
-      roadType,
-    }
-    this.markDirty('map')
-  }
-
-  /** 通过 BuildingId 设置瓦片（新主方法，同时设置 type 和 buildingId） */
-  setTileByBuildingId(
-    x: number,
-    y: number,
-    buildingId: BuildingId,
-    level = 1
-  ): void {
-    const existing = this.state.map.tiles[y][x]
-    const type = BUILDING_ID_TO_TILE_TYPE[buildingId]
-    this.state.map.tiles[y][x] = {
-      type,
       buildingId,
       x,
       y,
       level,
       connected: false,
       terrain: existing.terrain,
+      roadType,
     }
     this.markDirty('map')
   }

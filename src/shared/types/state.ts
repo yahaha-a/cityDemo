@@ -1,5 +1,6 @@
-import type { GameMap, Camera, TimeState, ToolType, TileType } from './core'
+import type { GameMap, Camera, TimeState, ToolType } from './core'
 import type { BuildingId } from './building-defs'
+import type { BuildingCategory } from './building-defs'
 import type { BuildingEffectState } from './building-effects'
 import type { EconomyState } from './economy'
 import type { EventState } from './events'
@@ -12,7 +13,10 @@ import type { StructureRegistry } from './structures'
 
 /** 派生的地图统计数据（按需计算、缓存） */
 export interface DerivedMapStats {
-  tileCounts: Record<TileType, number>
+  buildingCounts: Record<BuildingId, number>
+  categoryCounts: Record<BuildingCategory, number>
+  roadCount: number
+  emptyCount: number
   usagePercent: number
   connectionStats: { total: number; connected: number; disconnected: number }
 }

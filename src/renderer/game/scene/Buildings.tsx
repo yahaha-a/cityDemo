@@ -4,7 +4,6 @@ import { useFrame } from '@react-three/fiber'
 import { TerrainType } from 'shared/types'
 import type { BuildingId, BuildingCategory } from 'shared/types/building-defs'
 import { rotateFootprint } from 'shared/types/building-defs'
-import { getTileBuildingId } from 'shared/types/building-compat'
 import { getBuildingDef } from '../config/building-defs'
 import { BUILDING_COLORS, MAP_WIDTH, MAP_HEIGHT } from '../config'
 import { getBuildingGeometry } from './building-geometries'
@@ -174,7 +173,7 @@ export function Buildings() {
     if (hoveredTile && !state.selectedBuildingId) {
       const ht = map.tiles[hoveredTile.y]?.[hoveredTile.x]
       if (ht) {
-        const hBid = getTileBuildingId(ht)
+        const hBid = ht.buildingId
         if (hBid !== 'empty' && hBid !== 'road') {
           if (ht.structureId && ht.structureRole === 'part') {
             const inst = structures.instances[ht.structureId]
@@ -240,7 +239,7 @@ export function Buildings() {
       for (let y = 0; y < MAP_HEIGHT; y++) {
         for (let x = 0; x < MAP_WIDTH; x++) {
           const tile = map.tiles[y][x]
-          const bid = getTileBuildingId(tile)
+          const bid = tile.buildingId
           if (bid === 'empty' || bid === 'road') continue
 
           // 多格建筑只在 origin 格渲染

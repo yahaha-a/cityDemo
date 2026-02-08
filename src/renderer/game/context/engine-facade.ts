@@ -1,4 +1,4 @@
-import type { ToolType, TimeSpeed, TileType, GameState } from 'shared/types'
+import type { ToolType, TimeSpeed, GameState } from 'shared/types'
 import type { BuildingId } from 'shared/types/building-defs'
 import type { GameLoop } from '../engine/game-loop'
 import type { StateKey } from '../engine/game-state'
@@ -35,7 +35,7 @@ export interface GameEngineFacade {
 
   // === 危机系统 ===
   resolveCrisis(optionId: string): boolean
-  hasFacility(facilityType: TileType): boolean
+  hasFacility(facilityId: BuildingId): boolean
 
   // === 特色系统 ===
   chooseSpecialization(specId: string): boolean

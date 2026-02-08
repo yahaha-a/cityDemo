@@ -1,4 +1,4 @@
-import type { TileType } from './core'
+import type { BuildingId } from './building-defs'
 
 /** 足迹单元格偏移 */
 export interface FootprintCell {
@@ -17,7 +17,7 @@ export interface StructureEffect {
 export interface StructureTemplate {
   id: string
   name: string
-  tileType: TileType
+  buildingId: BuildingId
   footprint: FootprintCell[]
   buildCost: number
   effects: StructureEffect[]

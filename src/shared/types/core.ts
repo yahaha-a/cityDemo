@@ -2,7 +2,7 @@
  * 核心游戏类型定义
  */
 
-/** 瓦片类型 */
+/** @deprecated 仅用于旧代码兼容，新代码使用 BuildingId */
 export enum TileType {
   Empty = 'empty',
   Road = 'road',
@@ -60,8 +60,7 @@ export enum ToolType {
 
 /** 瓦片数据 */
 export interface Tile {
-  type: TileType
-  buildingId?: import('./building-defs').BuildingId
+  buildingId: import('./building-defs').BuildingId
   x: number
   y: number
   level: number
@@ -102,21 +101,54 @@ export interface TimeState {
   tickAccumulator: number
 }
 
-/** 工具到瓦片类型的映射 */
-export const toolToTileType: Partial<Record<ToolType, TileType>> = {
-  [ToolType.Road]: TileType.Road,
-  [ToolType.Highway]: TileType.Road,
-  [ToolType.Bridge]: TileType.Road,
-  [ToolType.Tunnel]: TileType.Road,
-  [ToolType.Residential]: TileType.Residential,
-  [ToolType.Commercial]: TileType.Commercial,
-  [ToolType.Industrial]: TileType.Industrial,
-  [ToolType.Park]: TileType.Park,
-  [ToolType.School]: TileType.School,
-  [ToolType.Hospital]: TileType.Hospital,
-  [ToolType.FireStation]: TileType.FireStation,
-  [ToolType.PoliceStation]: TileType.PoliceStation,
-  [ToolType.PowerPlant]: TileType.PowerPlant,
+/** 工具 → BuildingId 映射（替代 toolToTileType） */
+export const toolToBuildingId: Partial<
+  Record<ToolType, import('./building-defs').BuildingId>
+> = {
+  [ToolType.Road]: 'road',
+  [ToolType.Highway]: 'road',
+  [ToolType.Bridge]: 'road',
+  [ToolType.Tunnel]: 'road',
+  [ToolType.Residential]: 'house',
+  [ToolType.Commercial]: 'shop',
+  [ToolType.Industrial]: 'factory',
+  [ToolType.Park]: 'park',
+  [ToolType.School]: 'school',
+  [ToolType.Hospital]: 'hospital',
+  [ToolType.FireStation]: 'fire_station',
+  [ToolType.PoliceStation]: 'police_station',
+  [ToolType.PowerPlant]: 'power_plant',
+}
+
+/** 设施 BuildingId 集合 */
+export const FACILITY_BUILDING_IDS: ReadonlySet<
+  import('./building-defs').BuildingId
+> = new Set([
+  'park',
+  'plaza',
+  'school',
+  'hospital',
+  'fire_station',
+  'police_station',
+  'power_plant',
+])
+
+export function isFacilityBuilding(
+  id: import('./building-defs').BuildingId
+): boolean {
+  return FACILITY_BUILDING_IDS.has(id)
+}
+
+export function isEmptyOrRoad(
+  id: import('./building-defs').BuildingId
+): boolean {
+  return id === 'empty' || id === 'road'
+}
+
+export function isBuildingId(
+  id: import('./building-defs').BuildingId
+): boolean {
+  return id !== 'empty' && id !== 'road'
 }
 
 /** 道路工具到道路类型的映射 */
@@ -143,41 +175,4 @@ const TERRAFORM_TOOLS: ReadonlySet<ToolType> = new Set([
 /** 判断工具是否为地形改造类型 */
 export function isTerraformTool(tool: ToolType): boolean {
   return TERRAFORM_TOOLS.has(tool)
-}
-
-/** 设施类型集合 */
-export const FACILITY_TILE_TYPES: ReadonlySet<TileType> = new Set([
-  TileType.Park,
-  TileType.School,
-  TileType.Hospital,
-  TileType.FireStation,
-  TileType.PoliceStation,
-  TileType.PowerPlant,
-])
-
-/** 判断瓦片类型是否为设施 */
-export function isFacilityType(type: TileType): boolean {
-  return FACILITY_TILE_TYPES.has(type)
-}
-
-/** 判断瓦片类型是否为核心建筑（住宅/商业/工业） */
-export function isCoreBuilding(type: TileType): boolean {
-  return (
-    type === TileType.Residential ||
-    type === TileType.Commercial ||
-    type === TileType.Industrial
-  )
-}
-
-/** 判断瓦片类型是否为任何建筑（含设施） */
-export function isBuilding(type: TileType): boolean {
-  return type !== TileType.Empty && type !== TileType.Road
-}
-
-/** 建筑成本配置 */
-export interface BuildingCosts {
-  [TileType.Road]: number
-  [TileType.Residential]: number
-  [TileType.Commercial]: number
-  [TileType.Industrial]: number
 }

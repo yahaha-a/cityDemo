@@ -1,4 +1,4 @@
-import { TileType, type CrisisTemplate } from 'shared/types'
+import type { BuildingId, CrisisTemplate } from 'shared/types'
 
 export const CRISIS_BASE_COOLDOWN = 40
 export const CRISIS_COOLDOWN_VARIANCE = 15
@@ -17,7 +17,7 @@ export const CRISIS_TEMPLATES: CrisisTemplate[] = [
     severity: 'moderate',
     minDay: 20,
     baseProbability: 0.3,
-    preventedByFacilities: [TileType.FireStation],
+    preventedByFacilities: ['fire_station' as BuildingId],
     preventionThreshold: 0.4,
     postEventId: 'road_decay',
     postEventProbability: 0.5,
@@ -60,7 +60,7 @@ export const CRISIS_TEMPLATES: CrisisTemplate[] = [
     baseProbability: 0.25,
     chainEventId: 'social_unrest',
     chainProbability: 0.4,
-    preventedByFacilities: [TileType.PoliceStation],
+    preventedByFacilities: ['police_station' as BuildingId],
     preventionThreshold: 0.3,
     options: [
       {
@@ -80,7 +80,7 @@ export const CRISIS_TEMPLATES: CrisisTemplate[] = [
         description: '派遣警力强制恢复秩序',
         cost: 200,
         effects: [{ type: 'satisfaction', value: -20 }],
-        requirements: { facility: TileType.PoliceStation },
+        requirements: { facility: 'police_station' as BuildingId },
       },
       {
         id: 'concede',
@@ -121,7 +121,7 @@ export const CRISIS_TEMPLATES: CrisisTemplate[] = [
           { type: 'satisfaction', value: -25 },
           { type: 'population_loss', value: 10 },
         ],
-        requirements: { facility: TileType.PoliceStation },
+        requirements: { facility: 'police_station' as BuildingId },
       },
     ],
   },
@@ -132,7 +132,7 @@ export const CRISIS_TEMPLATES: CrisisTemplate[] = [
     severity: 'catastrophic',
     minDay: 50,
     baseProbability: 0.15,
-    preventedByFacilities: [TileType.Hospital],
+    preventedByFacilities: ['hospital' as BuildingId],
     preventionThreshold: 0.5,
     postEventId: 'service_demand',
     postEventProbability: 1.0,
@@ -155,7 +155,7 @@ export const CRISIS_TEMPLATES: CrisisTemplate[] = [
         effects: [
           { type: 'services_multiplier_temp', value: 0.7, durationDays: 5 },
         ],
-        requirements: { facility: TileType.Hospital },
+        requirements: { facility: 'hospital' as BuildingId },
       },
       {
         id: 'ignore',
@@ -176,7 +176,7 @@ export const CRISIS_TEMPLATES: CrisisTemplate[] = [
     severity: 'moderate',
     minDay: 25,
     baseProbability: 0.25,
-    preventedByFacilities: [TileType.PowerPlant],
+    preventedByFacilities: ['power_plant' as BuildingId],
     preventionThreshold: 0.3,
     options: [
       {

@@ -1,12 +1,12 @@
 import { useRef, useEffect, useCallback } from 'react'
 import {
-  TILE_LABELS,
   TERRAIN_LABELS,
+  BUILDING_LABELS,
   TERRAIN_BUILD_COST_MULTIPLIER,
   UPGRADE_COST_MULTIPLIER,
 } from '../config'
-import { TileType, TerrainType } from 'shared/types'
-import { getTileBuildingId } from 'shared/types/building-compat'
+import { TerrainType } from 'shared/types'
+import { buildingIdToCategory } from 'shared/types/building-compat'
 import { getBuildingDef } from '../config/building-defs'
 import { useHoveredTile, useMap, useEconomy } from '../hooks/use-game-selector'
 import { ROAD_CONFIGS } from '../config/road'
@@ -52,7 +52,7 @@ export function TileTooltip() {
   const { efficiencyByType } = economy
   const effect = terrainEffectText(tileData.terrain)
 
-  const bid = getTileBuildingId(tileData)
+  const bid = tileData.buildingId
   const buildingDef =
     bid !== 'empty' && bid !== 'road' ? getBuildingDef(bid) : null
 
@@ -76,9 +76,9 @@ export function TileTooltip() {
           )}
         </div>
       ) : (
-        <div>类型: {TILE_LABELS[tileData.type]}</div>
+        <div>类型: {BUILDING_LABELS[bid]}</div>
       )}
-      {tileData.type === TileType.Road && tileData.roadType && (
+      {bid === 'road' && tileData.roadType && (
         <div className="text-[var(--game-text-muted)]">
           道路: {ROAD_CONFIGS[tileData.roadType].name}
         </div>
@@ -103,19 +103,22 @@ export function TileTooltip() {
           >
             {tileData.connected ? '已连接道路' : '未连接道路'}
           </div>
-          {tileData.connected && (
-            <div className="text-[var(--game-text-muted)]">
-              效率:{' '}
-              {Math.round(
-                (tileData.type === TileType.Residential
-                  ? efficiencyByType.residential
-                  : tileData.type === TileType.Commercial
-                    ? efficiencyByType.commercial
-                    : efficiencyByType.industrial) * 100
-              )}
-              %
-            </div>
-          )}
+          {tileData.connected && (() => {
+            const category = buildingIdToCategory(bid)
+            if (
+              category === 'residential' ||
+              category === 'commercial' ||
+              category === 'industrial'
+            ) {
+              return (
+                <div className="text-[var(--game-text-muted)]">
+                  效率:{' '}
+                  {Math.round(efficiencyByType[category] * 100)}%
+                </div>
+              )
+            }
+            return null
+          })()}
           {tileData.level < buildingDef.maxLevel && (
             <div className="text-[var(--game-text-muted)] text-[10px]">
               升级费用: $
