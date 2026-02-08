@@ -2,21 +2,6 @@
  * 核心游戏类型定义
  */
 
-/** @deprecated 仅用于旧代码兼容，新代码使用 BuildingId */
-export enum TileType {
-  Empty = 'empty',
-  Road = 'road',
-  Residential = 'residential',
-  Commercial = 'commercial',
-  Industrial = 'industrial',
-  Park = 'park',
-  School = 'school',
-  Hospital = 'hospital',
-  FireStation = 'fire_station',
-  PoliceStation = 'police_station',
-  PowerPlant = 'power_plant',
-}
-
 /** 地形类型 */
 export enum TerrainType {
   Plain = 'plain',
@@ -41,15 +26,6 @@ export enum ToolType {
   Highway = 'highway',
   Bridge = 'bridge',
   Tunnel = 'tunnel',
-  Residential = 'residential',
-  Commercial = 'commercial',
-  Industrial = 'industrial',
-  Park = 'park',
-  School = 'school',
-  Hospital = 'hospital',
-  FireStation = 'fire_station',
-  PoliceStation = 'police_station',
-  PowerPlant = 'power_plant',
   Demolish = 'demolish',
   Upgrade = 'upgrade',
   FlattenTerrain = 'flatten_terrain',
@@ -99,56 +75,6 @@ export interface TimeState {
   day: number
   speed: TimeSpeed
   tickAccumulator: number
-}
-
-/** 工具 → BuildingId 映射（替代 toolToTileType） */
-export const toolToBuildingId: Partial<
-  Record<ToolType, import('./building-defs').BuildingId>
-> = {
-  [ToolType.Road]: 'road',
-  [ToolType.Highway]: 'road',
-  [ToolType.Bridge]: 'road',
-  [ToolType.Tunnel]: 'road',
-  [ToolType.Residential]: 'house',
-  [ToolType.Commercial]: 'shop',
-  [ToolType.Industrial]: 'factory',
-  [ToolType.Park]: 'park',
-  [ToolType.School]: 'school',
-  [ToolType.Hospital]: 'hospital',
-  [ToolType.FireStation]: 'fire_station',
-  [ToolType.PoliceStation]: 'police_station',
-  [ToolType.PowerPlant]: 'power_plant',
-}
-
-/** 设施 BuildingId 集合 */
-export const FACILITY_BUILDING_IDS: ReadonlySet<
-  import('./building-defs').BuildingId
-> = new Set([
-  'park',
-  'plaza',
-  'school',
-  'hospital',
-  'fire_station',
-  'police_station',
-  'power_plant',
-])
-
-export function isFacilityBuilding(
-  id: import('./building-defs').BuildingId
-): boolean {
-  return FACILITY_BUILDING_IDS.has(id)
-}
-
-export function isEmptyOrRoad(
-  id: import('./building-defs').BuildingId
-): boolean {
-  return id === 'empty' || id === 'road'
-}
-
-export function isBuildingId(
-  id: import('./building-defs').BuildingId
-): boolean {
-  return id !== 'empty' && id !== 'road'
 }
 
 /** 道路工具到道路类型的映射 */

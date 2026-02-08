@@ -1,7 +1,6 @@
 import {
   TerrainType,
   ToolType,
-  toolToBuildingId,
   toolToRoadType,
   isRoadTool,
   isTerraformTool,
@@ -27,8 +26,7 @@ import { MAP_WIDTH, MAP_HEIGHT } from '../config'
 let nextStructureId = 1
 
 /**
- * 统一建筑系统 V2 — 处理所有 16 种建筑的放置/拆除/升级
- * 替代旧的 BuildingSystem + StructureSystem
+ * 统一建筑系统 — 处理所有 16 种建筑的放置/拆除/升级
  */
 export class BuildingSystemV2 implements IGameSystem {
   readonly id = 'building'
@@ -64,9 +62,9 @@ export class BuildingSystemV2 implements IGameSystem {
     if (currentTool === ToolType.Demolish) return this.demolish(x, y)
     if (currentTool === ToolType.Upgrade) return this.upgrade(x, y)
     if (isTerraformTool(currentTool)) return this.terraform(x, y, currentTool)
+    if (isRoadTool(currentTool)) return this.buildRoad(x, y, currentTool)
 
-    // 旧路径：通过 tool → buildingId 映射
-    return this.buildLegacy(x, y, currentTool)
+    return false
   }
 
   /**
@@ -343,27 +341,6 @@ export class BuildingSystemV2 implements IGameSystem {
     const terrainMult = TERRAIN_BUILD_COST_MULTIPLIER[terrain]
     if (!Number.isFinite(terrainMult)) return null
     return Math.ceil(def.cost * terrainMult)
-  }
-
-  // === 旧兼容路径 ===
-
-  private buildLegacy(x: number, y: number, tool: ToolType): boolean {
-    const bid = toolToBuildingId[tool]
-    if (!bid) return false
-
-    const currentTile = this.stateManager.getTileAt(x, y)
-    if (!currentTile || currentTile.buildingId !== 'empty') return false
-
-    // 道路工具特殊处理
-    if (isRoadTool(tool)) {
-      return this.buildRoad(x, y, tool)
-    }
-
-    // 水域不可建造
-    if (currentTile.terrain === TerrainType.Water) return false
-
-    // 查找对应的 BuildingId
-    return this.tryPlaceBuilding(bid, x, y)
   }
 
   private buildRoad(x: number, y: number, tool: ToolType): boolean {

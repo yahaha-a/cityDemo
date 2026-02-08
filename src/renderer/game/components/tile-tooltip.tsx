@@ -6,7 +6,7 @@ import {
   UPGRADE_COST_MULTIPLIER,
 } from '../config'
 import { TerrainType } from 'shared/types'
-import { buildingIdToCategory } from 'shared/types/building-compat'
+import { buildingIdToCategory } from 'shared/types/building-defs'
 import { getBuildingDef } from '../config/building-defs'
 import { useHoveredTile, useMap, useEconomy } from '../hooks/use-game-selector'
 import { ROAD_CONFIGS } from '../config/road'
