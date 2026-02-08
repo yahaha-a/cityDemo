@@ -193,27 +193,6 @@ export class GameStateManager {
     this.markDirty('map')
   }
 
-  /** 设置瓦片但不触发通知（用于批量操作，调用方自行包在 batch 中） */
-  setTileAtSilent(
-    x: number,
-    y: number,
-    type: TileType,
-    level = 1,
-    roadType?: RoadType
-  ): void {
-    const existing = this.state.map.tiles[y][x]
-    this.state.map.tiles[y][x] = {
-      type,
-      buildingId: TILE_TYPE_TO_BUILDING_ID[type],
-      x,
-      y,
-      level,
-      connected: false,
-      terrain: existing.terrain,
-      roadType,
-    }
-  }
-
   /** 通过 BuildingId 设置瓦片（新主方法，同时设置 type 和 buildingId） */
   setTileByBuildingId(
     x: number,
@@ -233,26 +212,6 @@ export class GameStateManager {
       terrain: existing.terrain,
     }
     this.markDirty('map')
-  }
-
-  /** 通过 BuildingId 设置瓦片（静默版本） */
-  setTileByBuildingIdSilent(
-    x: number,
-    y: number,
-    buildingId: BuildingId,
-    level = 1
-  ): void {
-    const existing = this.state.map.tiles[y][x]
-    const type = BUILDING_ID_TO_TILE_TYPE[buildingId]
-    this.state.map.tiles[y][x] = {
-      type,
-      buildingId,
-      x,
-      y,
-      level,
-      connected: false,
-      terrain: existing.terrain,
-    }
   }
 
   /** 修改地形类型（用于地形改造） */

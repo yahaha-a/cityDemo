@@ -13,6 +13,19 @@ import { SYNERGY_RULES_V2 } from '../config/synergy-rules'
 /** 等级乘数 */
 const LEVEL_MULTIPLIER = [1, 1.8, 3.0]
 
+/** 创建默认的瓦片效果对象 */
+function createDefaultTileEffect(): TileBuildingEffect {
+  return {
+    satisfactionMod: 0,
+    incomeMultiplier: 1,
+    efficiencyMultiplier: 1,
+    crisisResistance: 0,
+    capacityMultiplier: 1,
+    researchPoints: 0,
+    sources: [],
+  }
+}
+
 /**
  * 建筑效果系统 — 替代 FacilitySystem + SynergySystem + ProductionChainSystem
  * 每日 tick 中统一计算区域效果、协同效应、资源供需
@@ -108,15 +121,7 @@ export class BuildingEffectSystem implements IGameSystem {
 
                 const key = `${tx},${ty}`
                 if (!tileEffects[key]) {
-                  tileEffects[key] = {
-                    satisfactionMod: 0,
-                    incomeMultiplier: 1,
-                    efficiencyMultiplier: 1,
-                    crisisResistance: 0,
-                    capacityMultiplier: 1,
-                    researchPoints: 0,
-                    sources: [],
-                  }
+                  tileEffects[key] = createDefaultTileEffect()
                 }
 
                 const te = tileEffects[key]
@@ -218,15 +223,7 @@ export class BuildingEffectSystem implements IGameSystem {
 
             const key = `${tx},${ty}`
             if (!tileEffects[key]) {
-              tileEffects[key] = {
-                satisfactionMod: 0,
-                incomeMultiplier: 1,
-                efficiencyMultiplier: 1,
-                crisisResistance: 0,
-                capacityMultiplier: 1,
-                researchPoints: 0,
-                sources: [],
-              }
+              tileEffects[key] = createDefaultTileEffect()
             }
 
             const te = tileEffects[key]
