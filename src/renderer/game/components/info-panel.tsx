@@ -1,8 +1,4 @@
-import { useMemo } from 'react'
-import type { TileType } from 'shared/types'
 import type { BuildingCategory } from 'shared/types/building-defs'
-import { getTileBuildingId } from 'shared/types/building-compat'
-import { getBuildingDef } from '../config/building-defs'
 import {
   useMoney,
   useEconomy,
@@ -27,36 +23,21 @@ export function InfoPanel() {
   const buildingEffects = useGameSelector(s => s.buildingEffects, {
     keys: ['buildingEffects'],
   })
-  const map = useGameSelector(s => s.map, { keys: ['map'] })
 
-  const counts =
-    mapStats?.tileCounts ?? ({} as Partial<Record<TileType, number>>)
+  const categoryCounts: Record<BuildingCategory, number> =
+    mapStats?.categoryCounts ?? {
+      residential: 0,
+      commercial: 0,
+      industrial: 0,
+      service: 0,
+    }
+  const roadCount = mapStats?.roadCount ?? 0
   const usage = mapStats?.usagePercent ?? 0
   const connectionStats = mapStats?.connectionStats ?? {
     total: 0,
     connected: 0,
     disconnected: 0,
   }
-
-  // 按建筑分类统计数量
-  const categoryCounts = useMemo(() => {
-    const result: Record<BuildingCategory, number> = {
-      residential: 0,
-      commercial: 0,
-      industrial: 0,
-      service: 0,
-    }
-    if (!map) return result
-    for (const row of map.tiles) {
-      for (const tile of row) {
-        const bid = getTileBuildingId(tile)
-        if (bid === 'empty' || bid === 'road') continue
-        const def = getBuildingDef(bid)
-        if (def) result[def.category]++
-      }
-    }
-    return result
-  }, [map])
 
   const { satisfaction, population, populationCapacity } = economy
 
@@ -90,7 +71,7 @@ export function InfoPanel() {
       <GamePanelDivider />
       <CityOverviewSection
         categoryCounts={categoryCounts}
-        counts={counts}
+        roadCount={roadCount}
         usage={usage}
       />
 

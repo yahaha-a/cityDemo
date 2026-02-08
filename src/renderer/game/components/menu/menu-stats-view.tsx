@@ -10,8 +10,8 @@ import {
 } from '../../hooks/use-game-selector'
 import { MILESTONES } from '../../config/milestones'
 import { TECH_TREE } from '../../config/tech'
-import { TILE_LABELS } from '../../config/ui'
-import { TileType } from 'shared/types'
+import { BUILDING_LABELS } from '../../config/ui'
+import type { BuildingId } from 'shared/types/building-defs'
 import { GameButton } from '../ui/game-button'
 import { GamePanelDivider } from '../ui/game-panel'
 import { ProgressBar } from '../ui/progress-bar'
@@ -38,18 +38,25 @@ function StatRow({
   )
 }
 
-const BUILDING_TYPES = [
-  TileType.Road,
-  TileType.Residential,
-  TileType.Commercial,
-  TileType.Industrial,
-  TileType.Park,
-  TileType.School,
-  TileType.Hospital,
-  TileType.FireStation,
-  TileType.PoliceStation,
-  TileType.PowerPlant,
-] as const
+const DISPLAY_BUILDING_IDS: BuildingId[] = [
+  'road',
+  'house',
+  'apartment',
+  'residential_complex',
+  'shop',
+  'office',
+  'mall',
+  'factory',
+  'heavy_industry',
+  'warehouse',
+  'park',
+  'plaza',
+  'school',
+  'hospital',
+  'fire_station',
+  'police_station',
+  'power_plant',
+]
 
 export function MenuStatsView({ onBack }: MenuStatsViewProps) {
   const money = useMoney()
@@ -61,8 +68,8 @@ export function MenuStatsView({ onBack }: MenuStatsViewProps) {
   const specialization = useSpecialization()
   const mapStats = useMapStats()
 
-  const counts =
-    mapStats?.tileCounts ?? ({} as Partial<Record<TileType, number>>)
+  const buildingCounts =
+    mapStats?.buildingCounts ?? ({} as Partial<Record<BuildingId, number>>)
   const usage = mapStats?.usagePercent ?? 0
 
   const { satisfaction, population, populationCapacity, lastDayRevenue } =
@@ -123,10 +130,12 @@ export function MenuStatsView({ onBack }: MenuStatsViewProps) {
       <div className="text-xs font-[family-name:var(--font-heading)] text-[var(--game-text-heading)] mb-1">
         建筑统计
       </div>
-      {BUILDING_TYPES.map(type => {
-        const count = counts[type] ?? 0
+      {DISPLAY_BUILDING_IDS.map(bid => {
+        const count = buildingCounts[bid] ?? 0
         if (count === 0) return null
-        return <StatRow key={type} label={TILE_LABELS[type]} value={count} />
+        return (
+          <StatRow key={bid} label={BUILDING_LABELS[bid]} value={count} />
+        )
       })}
       <StatRow label="土地利用率" value={`${usage}%`} />
 

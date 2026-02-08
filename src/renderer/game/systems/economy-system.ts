@@ -1,11 +1,11 @@
 import {
-  TileType,
   TerrainType,
   RoadType,
   DemandLevel,
   type ResourceMarket,
   type DemandIndicators,
 } from 'shared/types'
+import { buildingIdToCategory } from 'shared/types/building-compat'
 import type { GameStateManager } from '../engine/game-state'
 import type { IGameSystem, SystemRegistry } from '../engine/system-registry'
 import type { EventSystem } from './event-system'
@@ -254,16 +254,21 @@ export class EconomySystem implements IGameSystem {
     for (let y = 0; y < MAP_HEIGHT; y++) {
       for (let x = 0; x < MAP_WIDTH; x++) {
         const tile = map.tiles[y][x]
-        switch (tile.type) {
-          case TileType.Road:
+        const bid = tile.buildingId
+
+        if (bid === 'road') {
+          const roadType = tile.roadType ?? RoadType.Normal
+          census.roadMaintenanceTotal +=
+            ROAD_CONFIGS[roadType].maintenanceCost
+          continue
+        }
+
+        if (!tile.connected) continue
+
+        const category = buildingIdToCategory(bid)
+        switch (category) {
+          case 'residential':
             {
-              const roadType = tile.roadType ?? RoadType.Normal
-              census.roadMaintenanceTotal +=
-                ROAD_CONFIGS[roadType].maintenanceCost
-            }
-            break
-          case TileType.Residential:
-            if (tile.connected) {
               census.connRes++
               const li = tile.level - 1
               const capMult = LEVEL_CAPACITY_MULTIPLIER[li]
@@ -286,8 +291,8 @@ export class EconomySystem implements IGameSystem {
               }
             }
             break
-          case TileType.Commercial:
-            if (tile.connected) {
+          case 'commercial':
+            {
               census.connCom++
               const li = tile.level - 1
               const outMult = LEVEL_OUTPUT_MULTIPLIER[li]
@@ -301,8 +306,8 @@ export class EconomySystem implements IGameSystem {
               census.comIncomeWeighted += BASE_COMMERCIAL_INCOME * incMult
             }
             break
-          case TileType.Industrial:
-            if (tile.connected) {
+          case 'industrial':
+            {
               census.connInd++
               const li = tile.level - 1
               const outMult = LEVEL_OUTPUT_MULTIPLIER[li]

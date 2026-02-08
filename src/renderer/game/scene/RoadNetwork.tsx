@@ -1,7 +1,7 @@
 import { useRef, useMemo } from 'react'
 import * as THREE from 'three'
 import { useFrame } from '@react-three/fiber'
-import { TileType, TerrainType, RoadType } from 'shared/types'
+import { TerrainType, RoadType } from 'shared/types'
 import { MAP_WIDTH, MAP_HEIGHT } from '../config'
 import { useGameStore } from '../stores/game-store'
 
@@ -90,7 +90,7 @@ export function RoadNetwork() {
     for (let y = 0; y < map.height; y++) {
       for (let x = 0; x < map.width; x++) {
         const tile = map.tiles[y][x]
-        if (tile.type !== TileType.Road) continue
+        if (tile.buildingId !== 'road') continue
 
         const roadType = tile.roadType ?? RoadType.Normal
         const mesh = meshRefs.current[roadType]

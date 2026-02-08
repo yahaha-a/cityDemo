@@ -2,7 +2,6 @@ import { useRef, useMemo } from 'react'
 import * as THREE from 'three'
 import { useFrame } from '@react-three/fiber'
 import { ToolType, TerrainType } from 'shared/types'
-import { getTileBuildingId } from 'shared/types/building-compat'
 import { MAP_WIDTH, MAP_HEIGHT } from '../config'
 import { useGameStore } from '../stores/game-store'
 
@@ -71,7 +70,7 @@ export function HoverIndicator() {
 
     // 悬停 tile 上有建筑时，Buildings 悬停高亮接管
     const tile = state.map.tiles[y][x]
-    const bid = getTileBuildingId(tile)
+    const bid = tile.buildingId
     if (bid !== 'empty' && bid !== 'road') {
       mesh.visible = false
       return

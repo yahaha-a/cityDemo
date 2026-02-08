@@ -1,4 +1,4 @@
-import type { TileType } from './core'
+import type { BuildingId } from './building-defs'
 
 export interface CrisisEffect {
   type:
@@ -19,7 +19,7 @@ export interface CrisisOption {
   description: string
   cost: number
   effects: CrisisEffect[]
-  requirements?: { facility?: TileType; tech?: string }
+  requirements?: { facility?: BuildingId; tech?: string }
 }
 
 export interface CrisisTemplate {
@@ -30,7 +30,7 @@ export interface CrisisTemplate {
   options: CrisisOption[]
   chainEventId?: string
   chainProbability?: number
-  preventedByFacilities?: TileType[]
+  preventedByFacilities?: BuildingId[]
   preventionThreshold?: number
   minDay: number
   baseProbability: number

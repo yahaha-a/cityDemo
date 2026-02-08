@@ -1,4 +1,4 @@
-import type { TileType } from './core'
+import type { BuildingId } from './building-defs'
 
 export interface MilestoneCondition {
   type:
@@ -8,7 +8,7 @@ export interface MilestoneCondition {
     | 'building_count'
     | 'day_reached'
   threshold: number
-  buildingType?: TileType
+  buildingType?: BuildingId
   streakDays?: number
 }
 

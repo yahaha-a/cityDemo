@@ -13,7 +13,6 @@ import {
   type SpecializationState,
   type StructureRegistry,
   type BuildingEffectState,
-  TileType,
   TerrainType,
   ToolType,
   TimeSpeed,
@@ -43,7 +42,6 @@ function createEmptyMap(seed: number): GameMap {
     for (let x = 0; x < MAP_WIDTH; x++) {
       const terrain = terrainFromNoise(noise[y][x])
       tiles[y][x] = {
-        type: TileType.Empty,
         buildingId: 'empty',
         x,
         y,

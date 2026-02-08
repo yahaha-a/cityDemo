@@ -3,7 +3,6 @@ import type {
   TileBuildingEffect,
 } from 'shared/types/building-effects'
 import type { BuildingCategory } from 'shared/types/building-defs'
-import { getTileBuildingId } from 'shared/types/building-compat'
 import type { GameStateManager } from '../engine/game-state'
 import type { IGameSystem, SystemRegistry } from '../engine/system-registry'
 import { MAP_WIDTH, MAP_HEIGHT } from '../config'
@@ -72,7 +71,7 @@ export class BuildingEffectSystem implements IGameSystem {
     for (let y = 0; y < MAP_HEIGHT; y++) {
       for (let x = 0; x < MAP_WIDTH; x++) {
         const tile = map.tiles[y][x]
-        const buildingId = getTileBuildingId(tile)
+        const buildingId = tile.buildingId
         if (buildingId === 'empty' || buildingId === 'road') continue
 
         const def = getBuildingDef(buildingId)
@@ -104,7 +103,7 @@ export class BuildingEffectSystem implements IGameSystem {
                 continue
 
               const target = map.tiles[ty][tx]
-              const targetId = getTileBuildingId(target)
+              const targetId = target.buildingId
               if (targetId === 'empty' || targetId === 'road') continue
               if (!target.connected) continue
 
@@ -207,7 +206,7 @@ export class BuildingEffectSystem implements IGameSystem {
             const target = map.tiles[ty][tx]
             if (!target.connected) continue
 
-            const targetId = getTileBuildingId(target)
+            const targetId = target.buildingId
             const targetDef = getBuildingDef(targetId)
             if (!targetDef) continue
 
@@ -274,7 +273,7 @@ export class BuildingEffectSystem implements IGameSystem {
     for (const [key, info] of Object.entries(tileEffects)) {
       const [xStr, yStr] = key.split(',')
       const tile = map.tiles[Number(yStr)][Number(xStr)]
-      const buildingId = getTileBuildingId(tile)
+      const buildingId = tile.buildingId
       const def = getBuildingDef(buildingId)
       if (!def) continue
 
@@ -386,7 +385,7 @@ export class BuildingEffectSystem implements IGameSystem {
         const tile = map.tiles[y][x]
         if (!tile.connected) continue
 
-        const buildingId = getTileBuildingId(tile)
+        const buildingId = tile.buildingId
         if (buildingId === 'empty' || buildingId === 'road') continue
 
         // 多格建筑只处理 origin

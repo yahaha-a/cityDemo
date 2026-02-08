@@ -1,21 +1,16 @@
 import {
   type GameState,
   type Tile,
-  TileType,
   ToolType,
-  toolToTileType,
+  toolToBuildingId,
   toolToRoadType,
   isRoadTool,
   isTerraformTool,
-  isFacilityType,
+  isFacilityBuilding,
 } from 'shared/types'
-import {
-  getTileBuildingId,
-  TILE_TYPE_TO_BUILDING_ID,
-} from 'shared/types/building-compat'
+import { buildingIdToCategory } from 'shared/types/building-compat'
 import { getBuildingDef } from '../config/building-defs'
 import {
-  BUILDING_COSTS,
   TERRAIN_BUILD_COST_MULTIPLIER,
   UPGRADE_COST_MULTIPLIER,
   UPGRADE_MIN_EFFICIENCY,
@@ -48,7 +43,7 @@ export class BuildQuery {
     }
 
     if (currentTool === ToolType.Demolish) {
-      return tile.type === TileType.Empty ? 'invalid' : 'valid'
+      return tile.buildingId === 'empty' ? 'invalid' : 'valid'
     }
 
     // 地形改造工具验证
@@ -74,7 +69,7 @@ export class BuildQuery {
           (def.unlockCondition.type === 'milestone' &&
             state.milestones.achieved.includes(def.unlockCondition.id!))
 
-        return tile.type === TileType.Empty &&
+        return tile.buildingId === 'empty' &&
           cost !== null &&
           money >= cost &&
           isUnlocked
@@ -83,25 +78,25 @@ export class BuildQuery {
       }
     }
 
-    const targetType = toolToTileType[currentTool]
-    if (!targetType) return 'valid'
+    const targetBid = toolToBuildingId[currentTool]
+    if (!targetBid) return 'valid'
 
     // 道路工具特殊验证
     if (isRoadTool(currentTool)) {
       return this.canBuildRoad(tile, currentTool, money) ? 'valid' : 'invalid'
     }
 
-    if (isFacilityType(targetType)) {
-      return this.canBuildFacility(tile, targetType, money, state)
+    if (isFacilityBuilding(targetBid)) {
+      return this.canBuildFacility(tile, targetBid, money, state)
         ? 'valid'
         : 'invalid'
     }
 
-    return this.canBuildRegular(tile, targetType, money) ? 'valid' : 'invalid'
+    return this.canBuildRegular(tile, targetBid, money) ? 'valid' : 'invalid'
   }
 
   private canUpgradeTile(tile: Tile, state: GameState): boolean {
-    const bid = getTileBuildingId(tile)
+    const bid = tile.buildingId
     if (bid === 'empty' || bid === 'road') return false
 
     const def = getBuildingDef(bid)
@@ -111,13 +106,15 @@ export class BuildQuery {
     if (tile.level === 2 && !state.milestones.upgradeLv3Unlocked) return false
     if (!tile.connected) return false
 
-    const efficiency =
-      tile.type === TileType.Residential
-        ? state.economy.efficiencyByType.residential
-        : tile.type === TileType.Commercial
-          ? state.economy.efficiencyByType.commercial
-          : state.economy.efficiencyByType.industrial
-    if (efficiency < UPGRADE_MIN_EFFICIENCY) return false
+    const category = buildingIdToCategory(bid)
+    if (
+      category === 'residential' ||
+      category === 'commercial' ||
+      category === 'industrial'
+    ) {
+      const efficiency = state.economy.efficiencyByType[category]
+      if (efficiency < UPGRADE_MIN_EFFICIENCY) return false
+    }
 
     const terrainMult = TERRAIN_BUILD_COST_MULTIPLIER[tile.terrain]
     const mult = Number.isFinite(terrainMult) ? terrainMult : 1
@@ -129,15 +126,11 @@ export class BuildQuery {
 
   private canBuildFacility(
     tile: Tile,
-    targetType: TileType,
+    buildingId: string,
     money: number,
     state: GameState
   ): boolean {
-    // 使用新建筑系统通过 TileType 查找对应建筑定义
-    const bid = TILE_TYPE_TO_BUILDING_ID[targetType]
-    if (!bid) return false
-
-    const def = getBuildingDef(bid)
+    const def = getBuildingDef(buildingId)
     if (!def) return false
 
     const isUnlocked =
@@ -153,7 +146,7 @@ export class BuildQuery {
       : null
 
     return (
-      tile.type === TileType.Empty &&
+      tile.buildingId === 'empty' &&
       cost !== null &&
       money >= cost &&
       isUnlocked
@@ -166,7 +159,7 @@ export class BuildQuery {
     money: number,
     state: GameState
   ): boolean {
-    if (tile.type !== TileType.Empty) return false
+    if (tile.buildingId !== 'empty') return false
 
     const action = getTerraformAction(tool)
     if (!action) return false
@@ -181,7 +174,7 @@ export class BuildQuery {
   }
 
   private canBuildRoad(tile: Tile, tool: ToolType, money: number): boolean {
-    if (tile.type !== TileType.Empty) return false
+    if (tile.buildingId !== 'empty') return false
 
     const roadType = toolToRoadType[tool]
     if (!roadType) return false
@@ -200,17 +193,17 @@ export class BuildQuery {
 
   private canBuildRegular(
     tile: Tile,
-    targetType: TileType,
+    buildingId: string,
     money: number
   ): boolean {
-    const baseCost = BUILDING_COSTS[targetType as keyof typeof BUILDING_COSTS]
-    if (baseCost === undefined) return true
+    const def = getBuildingDef(buildingId)
+    if (!def) return true
 
     const terrainMult = TERRAIN_BUILD_COST_MULTIPLIER[tile.terrain]
     return (
-      tile.type === TileType.Empty &&
+      tile.buildingId === 'empty' &&
       Number.isFinite(terrainMult) &&
-      money >= Math.ceil(baseCost * terrainMult)
+      money >= Math.ceil(def.cost * terrainMult)
     )
   }
 }

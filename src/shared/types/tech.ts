@@ -1,4 +1,4 @@
-import type { TileType } from './core'
+import type { BuildingId } from './building-defs'
 
 export interface TechEffect {
   type:
@@ -27,7 +27,7 @@ export interface TechState {
   currentResearch: string | null
   researchProgress: number
   dailyRP: number
-  unlockedBuildings: TileType[]
+  unlockedBuildings: BuildingId[]
   unlockedPolicies: string[]
   unlockedSpecializations: string[]
   permanentMultipliers: Record<string, number>

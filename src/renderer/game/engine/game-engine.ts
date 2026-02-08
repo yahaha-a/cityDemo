@@ -1,4 +1,4 @@
-import type { ToolType, TimeSpeed, TileType } from 'shared/types'
+import type { ToolType, TimeSpeed } from 'shared/types'
 import type { BuildingId } from 'shared/types/building-defs'
 import { GameStateManager, type StateKey } from './game-state'
 import { GameLoop } from './game-loop'
@@ -142,8 +142,8 @@ export class GameEngine implements GameEngineFacade {
   resolveCrisis(optionId: string): boolean {
     return this.crisisSystem.resolveCrisis(optionId)
   }
-  hasFacility(facilityType: TileType): boolean {
-    return this.crisisSystem.hasFacility(facilityType)
+  hasFacility(facilityId: BuildingId): boolean {
+    return this.crisisSystem.hasFacility(facilityId)
   }
 
   // === Facade: 特色系统 ===

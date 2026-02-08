@@ -1,10 +1,9 @@
 import type {
-  TileType,
   ChallengeState,
   CrisisTemplate,
   ActiveCrisis,
 } from 'shared/types'
-import { getTileBuildingId } from 'shared/types/building-compat'
+import type { BuildingId } from 'shared/types/building-defs'
 import type { GameStateManager } from '../engine/game-state'
 import type { IGameSystem, SystemRegistry } from '../engine/system-registry'
 import {
@@ -20,7 +19,6 @@ import {
   MAP_WIDTH,
   MAP_HEIGHT,
 } from '../config'
-import { BUILDING_ID_TO_TILE_TYPE } from 'shared/types/building-compat'
 import type { PolicySystem } from './policy-system'
 import type { EventSystem } from './event-system'
 
@@ -280,17 +278,14 @@ export class CrisisSystem implements IGameSystem {
     return avgResistance >= (crisis.preventionThreshold ?? 0.5)
   }
 
-  hasFacility(facilityType: TileType): boolean {
+  hasFacility(facilityId: BuildingId): boolean {
     const state = this.stateManager.getState()
     const { map } = state
     for (let y = 0; y < MAP_HEIGHT; y++) {
       for (let x = 0; x < MAP_WIDTH; x++) {
         const tile = map.tiles[y][x]
         if (!tile.connected) continue
-        // 优先检查 buildingId，回退到 tile.type
-        const bid = getTileBuildingId(tile)
-        const mappedType = BUILDING_ID_TO_TILE_TYPE[bid]
-        if (mappedType === facilityType) return true
+        if (tile.buildingId === facilityId) return true
       }
     }
     return false

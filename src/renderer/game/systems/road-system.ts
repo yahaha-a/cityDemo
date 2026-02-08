@@ -1,4 +1,4 @@
-import { TileType, RoadType } from 'shared/types'
+import { RoadType } from 'shared/types'
 import type { GameStateManager } from '../engine/game-state'
 import type { IGameSystem, SystemRegistry } from '../engine/system-registry'
 import { MAP_WIDTH, MAP_HEIGHT } from '../config'
@@ -42,7 +42,7 @@ export class RoadSystem implements IGameSystem {
         if (nx < 0 || nx >= MAP_WIDTH || ny < 0 || ny >= MAP_HEIGHT) continue
 
         const neighbor = map.tiles[ny][nx]
-        if (neighbor.type !== TileType.Road) continue
+        if (neighbor.buildingId !== 'road') continue
 
         const roadType = neighbor.roadType ?? RoadType.Normal
         const config = ROAD_CONFIGS[roadType]
@@ -74,7 +74,7 @@ export class RoadSystem implements IGameSystem {
         const tile = map.tiles[y][x]
 
         // 空地不需要连接状态
-        if (tile.type === TileType.Empty) {
+        if (tile.buildingId === 'empty') {
           if (tile.connected) {
             updates.push({ x, y, connected: false })
           }
@@ -82,7 +82,7 @@ export class RoadSystem implements IGameSystem {
         }
 
         // 道路始终视为已连接
-        if (tile.type === TileType.Road) {
+        if (tile.buildingId === 'road') {
           if (!tile.connected) {
             updates.push({ x, y, connected: true })
           }
@@ -115,7 +115,7 @@ export class RoadSystem implements IGameSystem {
         const tile = map.tiles[y][x]
 
         // 空地和道路不需要连接状态
-        if (tile.type === TileType.Empty) {
+        if (tile.buildingId === 'empty') {
           if (tile.connected) {
             updates.push({ x, y, connected: false })
           }
@@ -123,7 +123,7 @@ export class RoadSystem implements IGameSystem {
         }
 
         // 道路始终视为已连接
-        if (tile.type === TileType.Road) {
+        if (tile.buildingId === 'road') {
           if (!tile.connected) {
             updates.push({ x, y, connected: true })
           }
@@ -155,8 +155,8 @@ export class RoadSystem implements IGameSystem {
       for (let x = 0; x < MAP_WIDTH; x++) {
         const tile = map.tiles[y][x]
         if (
-          tile.type !== TileType.Empty &&
-          tile.type !== TileType.Road &&
+          tile.buildingId !== 'empty' &&
+          tile.buildingId !== 'road' &&
           !tile.connected
         ) {
           disconnected.push({ x, y })
@@ -182,7 +182,7 @@ export class RoadSystem implements IGameSystem {
     for (let y = 0; y < MAP_HEIGHT; y++) {
       for (let x = 0; x < MAP_WIDTH; x++) {
         const tile = map.tiles[y][x]
-        if (tile.type !== TileType.Empty && tile.type !== TileType.Road) {
+        if (tile.buildingId !== 'empty' && tile.buildingId !== 'road') {
           total++
           if (tile.connected) {
             connected++

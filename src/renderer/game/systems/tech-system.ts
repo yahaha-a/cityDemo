@@ -1,4 +1,5 @@
-import type { TileType, TechState } from 'shared/types'
+import type { TechState } from 'shared/types'
+import type { BuildingId } from 'shared/types/building-defs'
 import type { GameStateManager } from '../engine/game-state'
 import type { IGameSystem, SystemRegistry } from '../engine/system-registry'
 import { TECH_TREE } from '../config'
@@ -156,9 +157,9 @@ export class TechSystem implements IGameSystem {
       switch (effect.type) {
         case 'unlock_building': {
           if (!effect.target) break
-          const tileType = effect.target as TileType
-          if (!tech.unlockedBuildings.includes(tileType)) {
-            tech.unlockedBuildings = [...tech.unlockedBuildings, tileType]
+          const buildingId = effect.target as BuildingId
+          if (!tech.unlockedBuildings.includes(buildingId)) {
+            tech.unlockedBuildings = [...tech.unlockedBuildings, buildingId]
           }
           break
         }

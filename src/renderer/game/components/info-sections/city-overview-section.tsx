@@ -1,4 +1,3 @@
-import { TileType } from 'shared/types'
 import type { BuildingCategory } from 'shared/types/building-defs'
 import { AccordionSection } from '../ui/accordion-section'
 import { GamePanelDivider } from '../ui/game-panel'
@@ -11,11 +10,11 @@ const CATEGORY_LABELS: Record<BuildingCategory, string> = {
 }
 
 export function CityOverviewSection({
-  counts,
+  roadCount,
   categoryCounts,
   usage,
 }: {
-  counts: Partial<Record<TileType, number>>
+  roadCount: number
   categoryCounts: Record<BuildingCategory, number>
   usage: number
 }) {
@@ -24,7 +23,7 @@ export function CityOverviewSection({
       <div className="text-xs text-[var(--game-text)] space-y-0.5">
         <div className="flex justify-between">
           <span>道路</span>
-          <span>{counts[TileType.Road]}</span>
+          <span>{roadCount}</span>
         </div>
         {(
           [
