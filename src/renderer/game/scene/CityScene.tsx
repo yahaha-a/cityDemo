@@ -6,6 +6,7 @@ import { TerrainGrid } from './TerrainGrid'
 import { Buildings } from './Buildings'
 import { RoadNetwork } from './RoadNetwork'
 import { HoverIndicator } from './HoverIndicator'
+import { BuildingPreview } from './BuildingPreview'
 import { InputPlane } from './InputPlane'
 import { Effects } from './Effects'
 import { useGameStore } from '../stores/game-store'
@@ -47,6 +48,7 @@ export function CityScene() {
       <TerrainGrid />
       <RoadNetwork />
       <Buildings />
+      <BuildingPreview />
       <HoverIndicator />
       <InputPlane />
 

@@ -42,6 +42,7 @@ export interface GameState {
   specialization: SpecializationState
   structures: StructureRegistry
   buildingEffects: BuildingEffectState
+  buildingRotation: number
   _derived: DerivedState
 }
 
@@ -50,7 +51,10 @@ export interface SaveData {
   version: string
   timestamp: number
   name: string
-  gameState: Omit<GameState, 'hoveredTile' | 'selectedBuildingId' | '_derived'>
+  gameState: Omit<
+    GameState,
+    'hoveredTile' | 'selectedBuildingId' | 'buildingRotation' | '_derived'
+  >
 }
 
 /** 状态变更监听器类型 */

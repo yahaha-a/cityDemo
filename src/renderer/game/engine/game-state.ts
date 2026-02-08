@@ -147,15 +147,22 @@ export class GameStateManager {
   setTool(tool: ToolType): void {
     if (this.state.currentTool === tool) return
     this.state.currentTool = tool
-    // 切换工具时清除建筑选择
+    // 切换工具时清除建筑选择和旋转
     this.state.selectedBuildingId = null
-    this.markDirty('currentTool', 'selectedBuildingId')
+    this.state.buildingRotation = 0
+    this.markDirty('currentTool', 'selectedBuildingId', 'buildingRotation')
   }
 
   setSelectedBuildingId(buildingId: BuildingId | null): void {
     if (this.state.selectedBuildingId === buildingId) return
     this.state.selectedBuildingId = buildingId
-    this.markDirty('selectedBuildingId')
+    this.state.buildingRotation = 0
+    this.markDirty('selectedBuildingId', 'buildingRotation')
+  }
+
+  setBuildingRotation(rotation: number): void {
+    this.state.buildingRotation = ((rotation % 4) + 4) % 4
+    this.markDirty('buildingRotation')
   }
 
   setHoveredTile(tile: { x: number; y: number } | null): void {
@@ -276,6 +283,7 @@ export class GameStateManager {
     if (tile) {
       tile.structureId = structureId
       tile.structureRole = role
+      this.markDirty('map')
     }
   }
 
@@ -301,6 +309,7 @@ export class GameStateManager {
   /** 添加 tileToStructure 映射 */
   addTileToStructure(x: number, y: number, structureId: string): void {
     this.state.structures.tileToStructure[`${x},${y}`] = structureId
+    this.markDirty('structures')
   }
 
   /** 批量更新瓦片连接状态（接受坐标数组，避免字符串解析） */

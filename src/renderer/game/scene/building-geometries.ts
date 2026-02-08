@@ -110,12 +110,12 @@ function createBuildingGeometry(
     }
 
     case 'apartment': {
-      // 两段式方体 (1x2)
+      // 两段式方体 (1x2: 沿 X 轴扩展)
       const h = 0.8 * hMult
-      const parts = [box(0.9, h, 1.9)]
+      const parts = [box(1.9, h, 0.9)]
       // 顶部水箱
-      parts.push(box(0.3, 0.15, 0.3, 0.2, h, 0.5))
-      if (deco >= 1) parts.push(box(0.2, 0.1, 0.2, -0.2, h, -0.5))
+      parts.push(box(0.3, 0.15, 0.3, 0.5, h, 0.2))
+      if (deco >= 1) parts.push(box(0.2, 0.1, 0.2, -0.5, h, -0.2))
       if (deco >= 2) parts.push(box(0.15, 0.2, 0.15, 0, h + 0.15, 0))
       return merge(parts)
     }
@@ -147,10 +147,10 @@ function createBuildingGeometry(
     }
 
     case 'office': {
-      // 窄高塔 (1x2)
+      // 窄高塔 (1x2: 沿 X 轴扩展)
       const h = 1.2 * hMult
-      const parts = [box(0.85, h, 1.9)]
-      if (deco >= 1) parts.push(box(0.6, 0.05, 1.6, 0, h, 0)) // 顶部平台
+      const parts = [box(1.9, h, 0.85)]
+      if (deco >= 1) parts.push(box(1.6, 0.05, 0.6, 0, h, 0)) // 顶部平台
       if (deco >= 2) parts.push(box(0.15, 0.25, 0.15, 0, h + 0.05, 0)) // 天线
       return merge(parts)
     }
@@ -193,10 +193,10 @@ function createBuildingGeometry(
     }
 
     case 'warehouse': {
-      // 长条弧顶 (1x2)
+      // 长条弧顶 (1x2: 沿 X 轴扩展)
       const h = 0.4 * hMult
-      const parts = [box(0.9, h, 1.9)]
-      // 弧顶用半圆柱近似
+      const parts = [box(1.9, h, 0.9)]
+      // 弧顶用半圆柱近似（轴沿 X）
       const roofGeo = new THREE.CylinderGeometry(
         0.45,
         0.45,
@@ -208,7 +208,6 @@ function createBuildingGeometry(
         Math.PI
       )
       roofGeo.rotateZ(Math.PI / 2)
-      roofGeo.rotateY(Math.PI / 2)
       roofGeo.translate(0, h, 0)
       parts.push(roofGeo)
       return merge(parts)
@@ -261,14 +260,14 @@ function createBuildingGeometry(
     }
 
     case 'hospital': {
-      // 十字体 + 中央高塔 [{1,0},{0,1},{1,1},{2,1},{1,2}]
+      // 十字体 + 中央高塔 [{0,-1},{-1,0},{0,0},{1,0},{0,1}]
       const h = 0.6 * hMult
       const parts = [
-        box(0.95, h, 0.95, 0, 0, -1), // (1,0)
-        box(0.95, h, 0.95, -1, 0, 0), // (0,1)
-        box(0.95, h * 1.2, 0.95, 0, 0, 0), // (1,1) 中央高
-        box(0.95, h, 0.95, 1, 0, 0), // (2,1)
-        box(0.95, h, 0.95, 0, 0, 1), // (1,2)
+        box(0.95, h, 0.95, 0, 0, -1), // (0,-1)
+        box(0.95, h, 0.95, -1, 0, 0), // (-1,0)
+        box(0.95, h * 1.2, 0.95, 0, 0, 0), // (0,0) 中央高
+        box(0.95, h, 0.95, 1, 0, 0), // (1,0)
+        box(0.95, h, 0.95, 0, 0, 1), // (0,1)
       ]
       if (deco >= 1) parts.push(box(0.2, 0.2, 0.2, 0, h * 1.2, 0))
       return merge(parts)

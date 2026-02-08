@@ -21,6 +21,7 @@ export interface GameEngineFacade {
   setTimeSpeed(speed: TimeSpeed): void
   resetGame(): void
   setSelectedBuildingId(buildingId: BuildingId | null): void
+  rotateBuildingCW(): void
 
   // === 政策系统 ===
   togglePolicy(policyId: string): boolean
