@@ -141,15 +141,12 @@ export class BuildingEffectSystem implements IGameSystem {
                   break
                 case 'crisis_resistance':
                   te.crisisResistance += effect.value
-                  crisisResistanceSum += effect.value
-                  crisisResistanceCount++
                   break
                 case 'capacity_multiplier':
                   te.capacityMultiplier *= effect.value
                   break
                 case 'research_points':
                   te.researchPoints += effect.value
-                  totalResearchPoints += effect.value
                   break
               }
             }
