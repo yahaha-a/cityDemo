@@ -10,8 +10,16 @@ import type {
   StructureInstance,
 } from 'shared/types'
 import type { BuildingId } from 'shared/types/building-defs'
-import { CAMERA_MIN_ZOOM, CAMERA_MAX_ZOOM } from '../config'
+import { CAMERA_MIN_ZOOM, CAMERA_MAX_ZOOM, MAP_WIDTH } from '../config'
 import { createInitialState, createInitialCamera } from './initial-state'
+
+/** 脏 Tile 变更信息 */
+export interface MapChanges {
+  /** 是否需要全量重建 */
+  full: boolean
+  /** 变更的 tile 集合 (key = y * MAP_WIDTH + x) */
+  tiles: ReadonlySet<number>
+}
 
 /** GameState 的顶层键 */
 export type StateKey = keyof GameState
@@ -32,6 +40,17 @@ export class GameStateManager {
   private keyedListeners = new Set<KeyedSubscription>()
   private dirtyKeys = new Set<StateKey>()
   private batchDepth = 0
+
+  /** 脏 Tile 追踪：当前累积的变更 */
+  private _mapChanges: { full: boolean; tiles: Set<number> } = {
+    full: true,
+    tiles: new Set(),
+  }
+  /** 脏 Tile 追踪：上一次 flush 时的变更快照（供下游读取） */
+  private _lastMapChanges: { full: boolean; tiles: Set<number> } = {
+    full: true,
+    tiles: new Set(),
+  }
 
   constructor() {
     this.state = createInitialState()
@@ -71,8 +90,25 @@ export class GameStateManager {
     if (this.batchDepth === 0) this.flush()
   }
 
+  /** 标记指定 tile 为脏 */
+  private markTileDirty(x: number, y: number): void {
+    if (!this._mapChanges.full) {
+      this._mapChanges.tiles.add(y * MAP_WIDTH + x)
+    }
+  }
+
+  /** 获取上一次 flush 的 map 变更信息（供下游增量更新） */
+  getMapChanges(): Readonly<MapChanges> {
+    return this._lastMapChanges
+  }
+
   /** 刷新通知 — 仅通知监听键与 dirtyKeys 有交集的订阅者 */
   private flush(): void {
+    // 转存脏 Tile 变更信息
+    if (this.dirtyKeys.has('map')) {
+      this._lastMapChanges = this._mapChanges
+      this._mapChanges = { full: false, tiles: new Set() }
+    }
     // 为 dirty 的嵌套对象创建新引用，使场景组件的引用比较能检测到变化
     const nestedKeys: StateKey[] = [
       'map',
@@ -185,6 +221,7 @@ export class GameStateManager {
       terrain: existing.terrain,
       roadType,
     }
+    this.markTileDirty(x, y)
     this.markDirty('map')
   }
 
@@ -202,6 +239,7 @@ export class GameStateManager {
     } else if (!tile.originalTerrain) {
       tile.originalTerrain = tile.terrain
     }
+    this.markTileDirty(x, y)
     this.markDirty('map')
   }
 
@@ -216,6 +254,7 @@ export class GameStateManager {
     if (tile) {
       tile.structureId = structureId
       tile.structureRole = role
+      this.markTileDirty(x, y)
       this.markDirty('map')
     }
   }
@@ -254,6 +293,7 @@ export class GameStateManager {
       const tile = this.state.map.tiles[y]?.[x]
       if (tile && tile.connected !== connected) {
         tile.connected = connected
+        this.markTileDirty(x, y)
         changed = true
       }
     }
@@ -344,6 +384,7 @@ export class GameStateManager {
     const tile = this.state.map.tiles[y]?.[x]
     if (tile) {
       tile.level += 1
+      this.markTileDirty(x, y)
       this.markDirty('map')
     }
   }
@@ -351,6 +392,7 @@ export class GameStateManager {
   /** 从完整状态恢复（用于存档加载） */
   loadState(state: GameState): void {
     this.state = state
+    this._mapChanges = { full: true, tiles: new Set() }
     // 加载存档时标记所有键
     this.dirtyKeys.clear()
     for (const key of Object.keys(this.state) as StateKey[]) {
@@ -362,6 +404,7 @@ export class GameStateManager {
   /** 重置游戏 */
   resetGame(): void {
     this.state = createInitialState()
+    this._mapChanges = { full: true, tiles: new Set() }
     this.dirtyKeys.clear()
     for (const key of Object.keys(this.state) as StateKey[]) {
       this.dirtyKeys.add(key)

@@ -1,8 +1,4 @@
-import type {
-  ChallengeState,
-  CrisisTemplate,
-  ActiveCrisis,
-} from 'shared/types'
+import type { ChallengeState, CrisisTemplate, ActiveCrisis } from 'shared/types'
 import type { BuildingId } from 'shared/types/building-defs'
 import type { GameStateManager } from '../engine/game-state'
 import type { IGameSystem, SystemRegistry } from '../engine/system-registry'

@@ -167,9 +167,7 @@ export class BuildingSystemV2 implements IGameSystem {
       } else {
         const roadDef = getBuildingDef('road')
         const baseCost = roadDef?.cost ?? 10
-        this.stateManager.addMoney(
-          Math.floor(baseCost * DEMOLISH_REFUND_RATIO)
-        )
+        this.stateManager.addMoney(Math.floor(baseCost * DEMOLISH_REFUND_RATIO))
       }
     } else {
       // 建筑退款
@@ -240,8 +238,7 @@ export class BuildingSystemV2 implements IGameSystem {
     if (!tile) return false
 
     // 空地和道路不可升级
-    if (tile.buildingId === 'empty' || tile.buildingId === 'road')
-      return false
+    if (tile.buildingId === 'empty' || tile.buildingId === 'road') return false
 
     const buildingId = tile.buildingId
     const def = getBuildingDef(buildingId)

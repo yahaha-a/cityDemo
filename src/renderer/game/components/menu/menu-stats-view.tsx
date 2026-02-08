@@ -133,9 +133,7 @@ export function MenuStatsView({ onBack }: MenuStatsViewProps) {
       {DISPLAY_BUILDING_IDS.map(bid => {
         const count = buildingCounts[bid] ?? 0
         if (count === 0) return null
-        return (
-          <StatRow key={bid} label={BUILDING_LABELS[bid]} value={count} />
-        )
+        return <StatRow key={bid} label={BUILDING_LABELS[bid]} value={count} />
       })}
       <StatRow label="土地利用率" value={`${usage}%`} />
 

@@ -342,12 +342,28 @@ export const BUILDING_DEFS: BuildingDefinition[] = [
   },
 ]
 
+/** ID → 定义 的 O(1) 查找表 */
+const BUILDING_DEF_MAP = new Map<string, BuildingDefinition>(
+  BUILDING_DEFS.map(d => [d.id, d])
+)
+
+/** 分类 → 定义列表 的缓存 */
+const BUILDING_CATEGORY_MAP = new Map<string, BuildingDefinition[]>()
+for (const d of BUILDING_DEFS) {
+  let list = BUILDING_CATEGORY_MAP.get(d.category)
+  if (!list) {
+    list = []
+    BUILDING_CATEGORY_MAP.set(d.category, list)
+  }
+  list.push(d)
+}
+
 /** 根据 ID 获取建筑定义 */
 export function getBuildingDef(id: string): BuildingDefinition | undefined {
-  return BUILDING_DEFS.find(d => d.id === id)
+  return BUILDING_DEF_MAP.get(id)
 }
 
 /** 根据分类获取建筑列表 */
 export function getBuildingsByCategory(category: string): BuildingDefinition[] {
-  return BUILDING_DEFS.filter(d => d.category === category)
+  return BUILDING_CATEGORY_MAP.get(category) ?? []
 }
