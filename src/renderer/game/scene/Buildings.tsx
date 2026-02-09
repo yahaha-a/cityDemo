@@ -6,7 +6,8 @@ import type { BuildingId, BuildingCategory } from 'shared/types/building-defs'
 import { rotateFootprint } from 'shared/types/building-defs'
 import { getBuildingDef } from '../config/building-defs'
 import { BUILDING_COLORS, MAP_WIDTH, MAP_HEIGHT } from '../config'
-import { getBuildingGeometry } from './building-geometries'
+import { getBuildingGeometryPair } from './building-geometries'
+import { getGradientMap3 } from './toon-materials'
 import { useGameStore } from '../stores/game-store'
 import type { GameEngine } from '../engine/game-engine'
 
@@ -66,22 +67,24 @@ const MAX_INSTANCES: Partial<Record<BuildingId, number>> = {
   power_plant: 128,
 }
 
-/** 每种建筑的等级 */
-const _MAX_LEVEL = 3
-
 const dummy = new THREE.Object3D()
 const tmpColor = new THREE.Color()
 const hoverWhite = new THREE.Color(0xffffff)
 const hoverOrigColor = new THREE.Color()
+const hoverOrigAccentColor = new THREE.Color()
 
-/** 生成 mesh key: buildingId_level */
-function meshKey(id: BuildingId, level: number): string {
-  return `${id}_${level}`
+/** 生成 mesh key */
+function baseMeshKey(id: BuildingId, level: number): string {
+  return `${id}_base_${level}`
+}
+function accentMeshKey(id: BuildingId, level: number): string {
+  return `${id}_accent_${level}`
 }
 
 /** buildingInstanceMap 条目 */
 interface BuildingInstanceEntry {
-  key: string
+  baseKey: string
+  accentKey: string
   idx: number
   bid: BuildingId
 }
@@ -107,39 +110,63 @@ export function Buildings() {
   const buildingInstanceMap = useRef<Map<number, BuildingInstanceEntry>>(
     new Map()
   )
-  // 反向映射：(meshKey, idx) → tileKey 用于 swap-and-pop
+  // 反向映射：(baseMeshKey, idx) → tileKey 用于 swap-and-pop
   const meshIdxToTile = useRef<Map<string, Map<number, number>>>(new Map())
-  // 每个 meshKey 的当前计数
+  // 每个 baseMeshKey 的当前计数（base 和 accent 共享同一计数）
   const meshCounts = useRef<Record<string, number>>({})
 
   const prevHoverKeyRef = useRef<number | null>(null)
   const prevHoverRef = useRef<{
-    key: string
+    baseKey: string
+    accentKey: string
     idx: number
-    origColor: THREE.Color
+    origBaseColor: THREE.Color
+    origAccentColor: THREE.Color
   } | null>(null)
 
-  // 为每种建筑创建材质
+  // park accent shader ref（树冠呼吸）
+  const parkAccentShaderRef =
+    useRef<THREE.WebGLProgramParametersWithUniforms | null>(null)
+
+  // 为每种建筑创建材质（base + accent 各一个）
   const materials = useMemo(() => {
-    const mats: Record<string, THREE.MeshStandardMaterial> = {}
+    const gradientMap = getGradientMap3()
+    const mats: Record<string, THREE.MeshToonMaterial> = {}
     for (const id of RENDERABLE_IDS) {
-      mats[id] = new THREE.MeshStandardMaterial({
+      mats[`${id}_base`] = new THREE.MeshToonMaterial({
         color: new THREE.Color(BUILDING_COLORS[id].base),
-        roughness: 0.6,
-        metalness: 0.2,
+        gradientMap,
       })
+      const accentMat = new THREE.MeshToonMaterial({
+        color: new THREE.Color(BUILDING_COLORS[id].accent),
+        gradientMap,
+      })
+      // park accent: 注入树冠呼吸 uniform
+      if (id === 'park') {
+        accentMat.onBeforeCompile = shader => {
+          shader.uniforms.uBreathScale = { value: 1.0 }
+          shader.vertexShader = shader.vertexShader.replace(
+            '#include <begin_vertex>',
+            `#include <begin_vertex>
+transformed *= uBreathScale;`
+          )
+          parkAccentShaderRef.current = shader
+        }
+      }
+      mats[`${id}_accent`] = accentMat
     }
     return mats
   }, [])
 
-  // 建立 mesh 配置列表: 每种建筑 × 每个等级
+  // 建立 mesh 配置列表: 每种建筑 × 每个等级 × (base + accent)
   const meshConfigs = useMemo(() => {
     const configs: Array<{
       key: string
       id: BuildingId
       level: number
+      role: 'base' | 'accent'
       geometry: THREE.BufferGeometry
-      material: THREE.MeshStandardMaterial
+      material: THREE.MeshToonMaterial
       maxCount: number
     }> = []
 
@@ -148,20 +175,38 @@ export function Buildings() {
       if (!def) continue
       const maxLvl = def.maxLevel
       for (let lvl = 1; lvl <= maxLvl; lvl++) {
+        const pair = getBuildingGeometryPair(id, lvl)
+        const maxCount = MAX_INSTANCES[id] ?? 256
         configs.push({
-          key: meshKey(id, lvl),
+          key: baseMeshKey(id, lvl),
           id,
           level: lvl,
-          geometry: getBuildingGeometry(id, lvl),
-          material: materials[id],
-          maxCount: MAX_INSTANCES[id] ?? 256,
+          role: 'base',
+          geometry: pair.base,
+          material: materials[`${id}_base`],
+          maxCount,
+        })
+        configs.push({
+          key: accentMeshKey(id, lvl),
+          id,
+          level: lvl,
+          role: 'accent',
+          geometry: pair.accent,
+          material: materials[`${id}_accent`],
+          maxCount,
         })
       }
     }
     return configs
   }, [materials])
 
-  useFrame(() => {
+  useFrame(({ clock }) => {
+    // 树冠呼吸动画
+    if (parkAccentShaderRef.current) {
+      parkAccentShaderRef.current.uniforms.uBreathScale.value =
+        1.0 + Math.sin(clock.elapsedTime * 0.8) * 0.06
+    }
+
     const store = useGameStore.getState()
     const state = store.state
     if (!state) return
@@ -217,25 +262,23 @@ export function Buildings() {
       const updatedMeshKeys = new Set<string>()
       for (const [, entry] of instanceIndexMap.current) {
         if (!EFFICIENCY_CATEGORIES.includes(entry.category)) continue
-        const key = meshKey(entry.buildingId, entry.level)
-        const mesh = meshRefs.current[key]
-        if (!mesh) continue
+        const bKey = baseMeshKey(entry.buildingId, entry.level)
+        const aKey = accentMeshKey(entry.buildingId, entry.level)
+        const baseMesh = meshRefs.current[bKey]
+        const accentMesh = meshRefs.current[aKey]
 
-        tmpColor.set(BUILDING_COLORS[entry.buildingId].base)
-        if (!entry.connected) {
-          tmpColor.multiplyScalar(0.4)
-        } else {
-          const eff = effByType[entry.category as keyof typeof effByType] ?? 1
-          if (eff < 1) {
-            const gray = (tmpColor.r + tmpColor.g + tmpColor.b) / 3
-            const factor = (1 - eff) * 0.6
-            tmpColor.r = tmpColor.r * (1 - factor) + gray * factor
-            tmpColor.g = tmpColor.g * (1 - factor) + gray * factor
-            tmpColor.b = tmpColor.b * (1 - factor) + gray * factor
-          }
+        if (baseMesh) {
+          tmpColor.set(BUILDING_COLORS[entry.buildingId].base)
+          applyEfficiencyColor(tmpColor, entry, effByType)
+          baseMesh.setColorAt(entry.idx, tmpColor)
+          updatedMeshKeys.add(bKey)
         }
-        mesh.setColorAt(entry.idx, tmpColor)
-        updatedMeshKeys.add(key)
+        if (accentMesh) {
+          tmpColor.set(BUILDING_COLORS[entry.buildingId].accent)
+          applyEfficiencyColor(tmpColor, entry, effByType)
+          accentMesh.setColorAt(entry.idx, tmpColor)
+          updatedMeshKeys.add(aKey)
+        }
       }
       for (const key of updatedMeshKeys) {
         const mesh = meshRefs.current[key]
@@ -257,8 +300,10 @@ export function Buildings() {
         meshIdxToTile.current.clear()
         const indices: Record<string, number> = {}
         for (const cfg of meshConfigs) {
-          indices[cfg.key] = 0
-          meshIdxToTile.current.set(cfg.key, new Map())
+          if (cfg.role === 'base') {
+            indices[cfg.key] = 0
+            meshIdxToTile.current.set(cfg.key, new Map())
+          }
         }
 
         for (let y = 0; y < MAP_HEIGHT; y++) {
@@ -274,15 +319,18 @@ export function Buildings() {
             if (!def) continue
 
             const level = tile.level || 1
-            const key = meshKey(bid, level)
-            const mesh = meshRefs.current[key]
-            if (!mesh) continue
+            const bKey = baseMeshKey(bid, level)
+            const aKey = accentMeshKey(bid, level)
+            const baseMesh = meshRefs.current[bKey]
+            const accentMesh = meshRefs.current[aKey]
+            if (!baseMesh || !accentMesh) continue
 
-            const idx = indices[key]++
+            const idx = indices[bKey]++
             const tileKey = y * MAP_WIDTH + x
 
             setBuildingInstance(
-              mesh,
+              baseMesh,
+              accentMesh,
               idx,
               x,
               y,
@@ -293,8 +341,13 @@ export function Buildings() {
             )
 
             // 缓存建筑实例索引
-            buildingInstanceMap.current.set(tileKey, { key, idx, bid })
-            meshIdxToTile.current.get(key)?.set(idx, tileKey)
+            buildingInstanceMap.current.set(tileKey, {
+              baseKey: bKey,
+              accentKey: aKey,
+              idx,
+              bid,
+            })
+            meshIdxToTile.current.get(bKey)?.set(idx, tileKey)
 
             // 缓存效率相关建筑索引
             if (EFFICIENCY_CATEGORIES.includes(def.category)) {
@@ -315,16 +368,25 @@ export function Buildings() {
         for (const cfg of meshConfigs) {
           const mesh = meshRefs.current[cfg.key]
           if (!mesh) continue
-          const count = indices[cfg.key] ?? 0
-          mesh.count = count
-          if (count > 0) {
-            mesh.instanceMatrix.needsUpdate = true
-            if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true
+          if (cfg.role === 'base') {
+            const count = indices[cfg.key] ?? 0
+            mesh.count = count
+            // accent mesh 使用相同 count
+            const aMesh = meshRefs.current[accentMeshKey(cfg.id, cfg.level)]
+            if (aMesh) aMesh.count = count
+            if (count > 0) {
+              mesh.instanceMatrix.needsUpdate = true
+              if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true
+              if (aMesh) {
+                aMesh.instanceMatrix.needsUpdate = true
+                if (aMesh.instanceColor) aMesh.instanceColor.needsUpdate = true
+              }
+            }
           }
         }
       } else {
         // === 增量更新 ===
-        const affectedMeshKeys = new Set<string>()
+        const affectedBaseKeys = new Set<string>()
 
         for (const tileKey of mapChanges.tiles) {
           const x = tileKey % MAP_WIDTH
@@ -334,23 +396,36 @@ export function Buildings() {
 
           // 移除旧实例（swap-and-pop）
           if (oldEntry) {
-            const mk = oldEntry.key
-            const mesh = meshRefs.current[mk]
-            if (mesh) {
-              const lastIdx = (meshCounts.current[mk] ?? 1) - 1
+            const bk = oldEntry.baseKey
+            const ak = oldEntry.accentKey
+            const baseMesh = meshRefs.current[bk]
+            const accentMesh = meshRefs.current[ak]
+            if (baseMesh && accentMesh) {
+              const lastIdx = (meshCounts.current[bk] ?? 1) - 1
               if (oldEntry.idx !== lastIdx) {
                 // 把末尾实例的 matrix 和 color 复制到被移除的位置
                 const tmpMatrix = new THREE.Matrix4()
-                mesh.getMatrixAt(lastIdx, tmpMatrix)
-                mesh.setMatrixAt(oldEntry.idx, tmpMatrix)
-                if (mesh.instanceColor) {
+
+                // base mesh
+                baseMesh.getMatrixAt(lastIdx, tmpMatrix)
+                baseMesh.setMatrixAt(oldEntry.idx, tmpMatrix)
+                if (baseMesh.instanceColor) {
                   const tmpC = new THREE.Color()
-                  mesh.getColorAt(lastIdx, tmpC)
-                  mesh.setColorAt(oldEntry.idx, tmpC)
+                  baseMesh.getColorAt(lastIdx, tmpC)
+                  baseMesh.setColorAt(oldEntry.idx, tmpC)
+                }
+
+                // accent mesh
+                accentMesh.getMatrixAt(lastIdx, tmpMatrix)
+                accentMesh.setMatrixAt(oldEntry.idx, tmpMatrix)
+                if (accentMesh.instanceColor) {
+                  const tmpC = new THREE.Color()
+                  accentMesh.getColorAt(lastIdx, tmpC)
+                  accentMesh.setColorAt(oldEntry.idx, tmpC)
                 }
 
                 // 更新被移动实例的反向映射
-                const reverseMap = meshIdxToTile.current.get(mk)
+                const reverseMap = meshIdxToTile.current.get(bk)
                 const movedTileKey = reverseMap?.get(lastIdx)
                 if (reverseMap && movedTileKey !== undefined) {
                   const movedBuildingEntry =
@@ -371,9 +446,9 @@ export function Buildings() {
                   }
                 }
               }
-              meshCounts.current[mk]--
-              meshIdxToTile.current.get(mk)?.delete(lastIdx)
-              affectedMeshKeys.add(mk)
+              meshCounts.current[bk]--
+              meshIdxToTile.current.get(bk)?.delete(lastIdx)
+              affectedBaseKeys.add(bk)
             }
             buildingInstanceMap.current.delete(tileKey)
             instanceIndexMap.current.delete(`${x},${y}`)
@@ -389,20 +464,37 @@ export function Buildings() {
           if (!def) continue
 
           const level = tile.level || 1
-          const key = meshKey(bid, level)
-          const mesh = meshRefs.current[key]
-          if (!mesh) continue
+          const bKey = baseMeshKey(bid, level)
+          const aKey = accentMeshKey(bid, level)
+          const baseMesh = meshRefs.current[bKey]
+          const accentMesh = meshRefs.current[aKey]
+          if (!baseMesh || !accentMesh) continue
 
-          const idx = meshCounts.current[key] ?? 0
-          meshCounts.current[key] = idx + 1
+          const idx = meshCounts.current[bKey] ?? 0
+          meshCounts.current[bKey] = idx + 1
 
-          setBuildingInstance(mesh, idx, x, y, tile, def, structures, effByType)
+          setBuildingInstance(
+            baseMesh,
+            accentMesh,
+            idx,
+            x,
+            y,
+            tile,
+            def,
+            structures,
+            effByType
+          )
 
-          buildingInstanceMap.current.set(tileKey, { key, idx, bid })
-          if (!meshIdxToTile.current.has(key)) {
-            meshIdxToTile.current.set(key, new Map())
+          buildingInstanceMap.current.set(tileKey, {
+            baseKey: bKey,
+            accentKey: aKey,
+            idx,
+            bid,
+          })
+          if (!meshIdxToTile.current.has(bKey)) {
+            meshIdxToTile.current.set(bKey, new Map())
           }
-          meshIdxToTile.current.get(key)?.set(idx, tileKey)
+          meshIdxToTile.current.get(bKey)?.set(idx, tileKey)
 
           if (EFFICIENCY_CATEGORIES.includes(def.category)) {
             instanceIndexMap.current.set(`${x},${y}`, {
@@ -414,16 +506,27 @@ export function Buildings() {
             })
           }
 
-          affectedMeshKeys.add(key)
+          affectedBaseKeys.add(bKey)
         }
 
         // 更新受影响的 mesh
-        for (const mk of affectedMeshKeys) {
-          const mesh = meshRefs.current[mk]
-          if (!mesh) continue
-          mesh.count = meshCounts.current[mk] ?? 0
-          mesh.instanceMatrix.needsUpdate = true
-          if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true
+        for (const bk of affectedBaseKeys) {
+          const baseMesh = meshRefs.current[bk]
+          if (!baseMesh) continue
+          const count = meshCounts.current[bk] ?? 0
+          baseMesh.count = count
+          baseMesh.instanceMatrix.needsUpdate = true
+          if (baseMesh.instanceColor) baseMesh.instanceColor.needsUpdate = true
+
+          // 从 bk 提取 accent key
+          const ak = bk.replace('_base_', '_accent_')
+          const accentMesh = meshRefs.current[ak]
+          if (accentMesh) {
+            accentMesh.count = count
+            accentMesh.instanceMatrix.needsUpdate = true
+            if (accentMesh.instanceColor)
+              accentMesh.instanceColor.needsUpdate = true
+          }
         }
       }
     }
@@ -433,10 +536,16 @@ export function Buildings() {
       // 取消之前的高亮（仅在颜色未重建时需要手动恢复）
       if (!colorsRebuilt && prevHoverRef.current) {
         const prev = prevHoverRef.current
-        const mesh = meshRefs.current[prev.key]
-        if (mesh) {
-          mesh.setColorAt(prev.idx, prev.origColor)
-          if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true
+        const baseMesh = meshRefs.current[prev.baseKey]
+        const accentMesh = meshRefs.current[prev.accentKey]
+        if (baseMesh) {
+          baseMesh.setColorAt(prev.idx, prev.origBaseColor)
+          if (baseMesh.instanceColor) baseMesh.instanceColor.needsUpdate = true
+        }
+        if (accentMesh) {
+          accentMesh.setColorAt(prev.idx, prev.origAccentColor)
+          if (accentMesh.instanceColor)
+            accentMesh.instanceColor.needsUpdate = true
         }
       }
 
@@ -447,17 +556,25 @@ export function Buildings() {
       if (hoverGridKey !== null) {
         const entry = buildingInstanceMap.current.get(hoverGridKey)
         if (entry) {
-          const mesh = meshRefs.current[entry.key]
-          if (mesh?.instanceColor) {
-            mesh.getColorAt(entry.idx, hoverOrigColor)
+          const baseMesh = meshRefs.current[entry.baseKey]
+          const accentMesh = meshRefs.current[entry.accentKey]
+          if (baseMesh?.instanceColor && accentMesh?.instanceColor) {
+            baseMesh.getColorAt(entry.idx, hoverOrigColor)
+            accentMesh.getColorAt(entry.idx, hoverOrigAccentColor)
             prevHoverRef.current = {
-              key: entry.key,
+              baseKey: entry.baseKey,
+              accentKey: entry.accentKey,
               idx: entry.idx,
-              origColor: hoverOrigColor.clone(),
+              origBaseColor: hoverOrigColor.clone(),
+              origAccentColor: hoverOrigAccentColor.clone(),
             }
             tmpColor.copy(hoverOrigColor).lerp(hoverWhite, 0.35)
-            mesh.setColorAt(entry.idx, tmpColor)
-            mesh.instanceColor.needsUpdate = true
+            baseMesh.setColorAt(entry.idx, tmpColor)
+            baseMesh.instanceColor.needsUpdate = true
+
+            tmpColor.copy(hoverOrigAccentColor).lerp(hoverWhite, 0.35)
+            accentMesh.setColorAt(entry.idx, tmpColor)
+            accentMesh.instanceColor.needsUpdate = true
           }
         }
       }
@@ -482,9 +599,30 @@ export function Buildings() {
   )
 }
 
-/** 设置建筑实例的 matrix 和颜色 */
+/** 应用效率和连接状态到颜色 */
+function applyEfficiencyColor(
+  color: THREE.Color,
+  entry: { connected: boolean; category: BuildingCategory },
+  effByType: Record<string, number>
+): void {
+  if (!entry.connected) {
+    color.multiplyScalar(0.4)
+  } else if (EFFICIENCY_CATEGORIES.includes(entry.category)) {
+    const eff = effByType[entry.category as keyof typeof effByType] ?? 1
+    if (eff < 1) {
+      const gray = (color.r + color.g + color.b) / 3
+      const factor = (1 - eff) * 0.6
+      color.r = color.r * (1 - factor) + gray * factor
+      color.g = color.g * (1 - factor) + gray * factor
+      color.b = color.b * (1 - factor) + gray * factor
+    }
+  }
+}
+
+/** 设置建筑实例的 matrix 和颜色（同时设置 base 和 accent） */
 function setBuildingInstance(
-  mesh: THREE.InstancedMesh,
+  baseMesh: THREE.InstancedMesh,
+  accentMesh: THREE.InstancedMesh,
   idx: number,
   x: number,
   y: number,
@@ -535,9 +673,12 @@ function setBuildingInstance(
   dummy.scale.set(1, 1, 1)
   dummy.rotation.set(0, -(buildingRotation * Math.PI) / 2, 0)
   dummy.updateMatrix()
-  mesh.setMatrixAt(idx, dummy.matrix)
 
-  // 颜色
+  // 同一个 matrix 设到 base 和 accent
+  baseMesh.setMatrixAt(idx, dummy.matrix)
+  accentMesh.setMatrixAt(idx, dummy.matrix)
+
+  // base 颜色
   const bid = tile.buildingId as BuildingId
   tmpColor.set(BUILDING_COLORS[bid].base)
   if (!tile.connected) {
@@ -552,5 +693,21 @@ function setBuildingInstance(
       tmpColor.b = tmpColor.b * (1 - factor) + gray * factor
     }
   }
-  mesh.setColorAt(idx, tmpColor)
+  baseMesh.setColorAt(idx, tmpColor)
+
+  // accent 颜色
+  tmpColor.set(BUILDING_COLORS[bid].accent)
+  if (!tile.connected) {
+    tmpColor.multiplyScalar(0.4)
+  } else if (EFFICIENCY_CATEGORIES.includes(def.category as BuildingCategory)) {
+    const eff = effByType[def.category as keyof typeof effByType] ?? 1
+    if (eff < 1) {
+      const gray = (tmpColor.r + tmpColor.g + tmpColor.b) / 3
+      const factor = (1 - eff) * 0.6
+      tmpColor.r = tmpColor.r * (1 - factor) + gray * factor
+      tmpColor.g = tmpColor.g * (1 - factor) + gray * factor
+      tmpColor.b = tmpColor.b * (1 - factor) + gray * factor
+    }
+  }
+  accentMesh.setColorAt(idx, tmpColor)
 }
