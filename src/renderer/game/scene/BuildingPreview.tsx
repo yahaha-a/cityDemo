@@ -33,26 +33,22 @@ export function BuildingPreview() {
 
   const validMaterial = useMemo(
     () =>
-      new THREE.MeshStandardMaterial({
+      new THREE.MeshBasicMaterial({
         color: 0x66dd88,
         transparent: true,
         opacity: 0.45,
         depthWrite: false,
-        roughness: 0.8,
-        metalness: 0.0,
       }),
     []
   )
 
   const invalidMaterial = useMemo(
     () =>
-      new THREE.MeshStandardMaterial({
+      new THREE.MeshBasicMaterial({
         color: 0xdd6666,
         transparent: true,
         opacity: 0.45,
         depthWrite: false,
-        roughness: 0.8,
-        metalness: 0.0,
       }),
     []
   )

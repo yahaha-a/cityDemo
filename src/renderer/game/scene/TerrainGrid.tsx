@@ -1,7 +1,9 @@
 import { useRef, useMemo, useEffect, useCallback } from 'react'
 import * as THREE from 'three'
+import { useFrame } from '@react-three/fiber'
 import { TerrainType } from 'shared/types'
 import { TERRAIN_COLORS, MAP_WIDTH, MAP_HEIGHT } from '../config'
+import { getGradientMap3 } from './toon-materials'
 import { useGameStore } from '../stores/game-store'
 
 const TILE_UNIT = 1
@@ -30,25 +32,115 @@ const TERRAIN_TYPES = [
 // 模块级复用 Object3D，避免每帧分配
 const dummy = new THREE.Object3D()
 
+// 水面 shader
+const waterVertexShader = /* glsl */ `
+uniform float uTime;
+varying vec3 vWorldPos;
+varying vec3 vNormal;
+
+void main() {
+  vec4 worldPos = instanceMatrix * vec4(position, 1.0);
+
+  // 3 层叠加 sin 波
+  float wx = worldPos.x;
+  float wz = worldPos.z;
+  float wave1 = sin(wx * 3.0 + uTime * 1.2) * 0.015;
+  float wave2 = sin(wz * 2.5 + uTime * 0.9) * 0.012;
+  float wave3 = sin((wx + wz) * 4.0 + uTime * 1.5) * 0.008;
+  worldPos.y += wave1 + wave2 + wave3;
+
+  vWorldPos = worldPos.xyz;
+
+  // 偏导数近似法线
+  float eps = 0.05;
+  float hx1 = sin((wx + eps) * 3.0 + uTime * 1.2) * 0.015
+            + sin(wz * 2.5 + uTime * 0.9) * 0.012
+            + sin((wx + eps + wz) * 4.0 + uTime * 1.5) * 0.008;
+  float hx0 = sin((wx - eps) * 3.0 + uTime * 1.2) * 0.015
+            + sin(wz * 2.5 + uTime * 0.9) * 0.012
+            + sin((wx - eps + wz) * 4.0 + uTime * 1.5) * 0.008;
+  float hz1 = sin(wx * 3.0 + uTime * 1.2) * 0.015
+            + sin((wz + eps) * 2.5 + uTime * 0.9) * 0.012
+            + sin((wx + wz + eps) * 4.0 + uTime * 1.5) * 0.008;
+  float hz0 = sin(wx * 3.0 + uTime * 1.2) * 0.015
+            + sin((wz - eps) * 2.5 + uTime * 0.9) * 0.012
+            + sin((wx + wz - eps) * 4.0 + uTime * 1.5) * 0.008;
+
+  float dhdx = (hx1 - hx0) / (2.0 * eps);
+  float dhdz = (hz1 - hz0) / (2.0 * eps);
+  vNormal = normalize(vec3(-dhdx, 1.0, -dhdz));
+
+  vec4 mvPosition = viewMatrix * worldPos;
+  gl_Position = projectionMatrix * mvPosition;
+}
+`
+
+const waterFragmentShader = /* glsl */ `
+uniform float uTime;
+varying vec3 vWorldPos;
+varying vec3 vNormal;
+
+void main() {
+  // 浅色/深色根据法线 y 分量混合
+  vec3 shallowColor = vec3(0.44, 0.78, 0.88);
+  vec3 deepColor = vec3(0.22, 0.55, 0.72);
+  float blend = clamp(vNormal.y, 0.0, 1.0);
+  vec3 baseColor = mix(deepColor, shallowColor, blend);
+
+  // Blinn-Phong 高光
+  vec3 lightDir = normalize(vec3(0.5, 0.8, 0.3));
+  vec3 viewDir = normalize(cameraPosition - vWorldPos);
+  vec3 halfDir = normalize(lightDir + viewDir);
+  float spec = pow(max(dot(vNormal, halfDir), 0.0), 64.0);
+
+  // sparkle 闪烁
+  float sparkle = sin(vWorldPos.x * 15.0 + uTime * 3.0)
+                * sin(vWorldPos.z * 12.0 + uTime * 2.5);
+  sparkle = max(0.0, sparkle);
+  sparkle = pow(sparkle, 8.0) * 0.5;
+
+  vec3 finalColor = baseColor + vec3(1.0, 0.98, 0.9) * (spec * 0.6 + sparkle);
+
+  gl_FragColor = vec4(finalColor, 0.75);
+}
+`
+
 export function TerrainGrid() {
   const meshRefs = useRef<Record<string, THREE.InstancedMesh | null>>({})
   // 脏标记：地形在地形改造时也会变化，通过 map 引用比较检测
   const prevMapRef = useRef<unknown>(null)
 
+  // 水面 ShaderMaterial
+  const waterMaterial = useMemo(
+    () =>
+      new THREE.ShaderMaterial({
+        vertexShader: waterVertexShader,
+        fragmentShader: waterFragmentShader,
+        uniforms: {
+          uTime: { value: 0 },
+        },
+        transparent: true,
+        depthWrite: false,
+      }),
+    []
+  )
+
   // 为每种地形创建材质
   const materials = useMemo(() => {
-    const mats: Record<string, THREE.MeshStandardMaterial> = {}
+    const gradientMap = getGradientMap3()
+    const mats: Record<string, THREE.Material> = {}
     for (const t of TERRAIN_TYPES) {
-      mats[t] = new THREE.MeshStandardMaterial({
-        color: new THREE.Color(TERRAIN_COLORS[t].top),
-        roughness: 0.8,
-        metalness: 0.1,
-        transparent: t === TerrainType.Water,
-        opacity: t === TerrainType.Water ? 0.75 : 1,
-      })
+      if (t === TerrainType.Water) {
+        mats[t] = waterMaterial
+      } else {
+        mats[t] = new THREE.MeshToonMaterial({
+          color: new THREE.Color(TERRAIN_COLORS[t].top),
+          gradientMap,
+        })
+      }
     }
     return mats
-  }, [])
+  }, [waterMaterial])
 
   // 共享几何
   const geometry = useMemo(
@@ -128,6 +220,11 @@ export function TerrainGrid() {
       unsub()
     }
   }, [updateTerrain])
+
+  // 每帧更新水面 uTime
+  useFrame(({ clock }) => {
+    waterMaterial.uniforms.uTime.value = clock.elapsedTime
+  })
 
   const maxCount = MAP_WIDTH * MAP_HEIGHT
 

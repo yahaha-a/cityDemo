@@ -3,6 +3,7 @@ import * as THREE from 'three'
 import { useFrame } from '@react-three/fiber'
 import { TerrainType, RoadType } from 'shared/types'
 import { MAP_WIDTH, MAP_HEIGHT } from '../config'
+import { getGradientMap5 } from './toon-materials'
 import { useGameStore } from '../stores/game-store'
 import type { GameEngine } from '../engine/game-engine'
 
@@ -20,10 +21,10 @@ const TERRAIN_Y_MAP: Record<TerrainType, number> = {
 
 // 各道路类型颜色
 const ROAD_TYPE_COLORS: Record<RoadType, string> = {
-  [RoadType.Normal]: '#9ca3af',
-  [RoadType.Highway]: '#fbbf24',
-  [RoadType.Bridge]: '#60a5fa',
-  [RoadType.Tunnel]: '#a78bfa',
+  [RoadType.Normal]: '#d0c8b8',
+  [RoadType.Highway]: '#e8c858',
+  [RoadType.Bridge]: '#88c0d8',
+  [RoadType.Tunnel]: '#a890d0',
 }
 
 // 各道路类型的 Y 偏移调整
@@ -60,12 +61,12 @@ export function RoadNetwork() {
   const idxToTile = useRef<Record<string, Map<number, number>>>({})
 
   const materials = useMemo(() => {
-    const mats: Record<string, THREE.MeshStandardMaterial> = {}
+    const gradientMap = getGradientMap5()
+    const mats: Record<string, THREE.MeshToonMaterial> = {}
     for (const rt of ROAD_TYPES) {
-      mats[rt] = new THREE.MeshStandardMaterial({
+      mats[rt] = new THREE.MeshToonMaterial({
         color: new THREE.Color(ROAD_TYPE_COLORS[rt]),
-        roughness: 0.9,
-        metalness: 0.05,
+        gradientMap,
       })
     }
     return mats
