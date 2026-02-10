@@ -3,11 +3,24 @@ import * as THREE from 'three'
 import { useFrame } from '@react-three/fiber'
 import { TerrainType } from 'shared/types'
 import type { BuildingId, BuildingCategory } from 'shared/types/building-defs'
-import { rotateFootprint } from 'shared/types/building-defs'
+import {
+  rotateFootprint,
+  buildingIdToCategory,
+} from 'shared/types/building-defs'
 import { getBuildingDef } from '../config/building-defs'
-import { BUILDING_COLORS, MAP_WIDTH, MAP_HEIGHT } from '../config'
+import {
+  BUILDING_COLORS,
+  WINDOW_GLOW_COLORS,
+  MAP_WIDTH,
+  MAP_HEIGHT,
+} from '../config'
 import { getBuildingGeometryPair } from './building-geometries'
-import { getGradientMap3 } from './toon-materials'
+import {
+  getGradientMap3,
+  getGradientMap4,
+  getGradientMap5,
+} from './toon-materials'
+import { getTimeOfDay, getNightFactor } from './day-night-cycle'
 import { useGameStore } from '../stores/game-store'
 import type { GameEngine } from '../engine/game-engine'
 
@@ -72,6 +85,7 @@ const tmpColor = new THREE.Color()
 const hoverWhite = new THREE.Color(0xffffff)
 const hoverOrigColor = new THREE.Color()
 const hoverOrigAccentColor = new THREE.Color()
+const hoverOrigWindowColor = new THREE.Color()
 
 /** 生成 mesh key */
 function baseMeshKey(id: BuildingId, level: number): string {
@@ -80,11 +94,15 @@ function baseMeshKey(id: BuildingId, level: number): string {
 function accentMeshKey(id: BuildingId, level: number): string {
   return `${id}_accent_${level}`
 }
+function windowMeshKey(id: BuildingId, level: number): string {
+  return `${id}_windows_${level}`
+}
 
 /** buildingInstanceMap 条目 */
 interface BuildingInstanceEntry {
   baseKey: string
   accentKey: string
+  windowKey: string
   idx: number
   bid: BuildingId
 }
@@ -119,32 +137,77 @@ export function Buildings() {
   const prevHoverRef = useRef<{
     baseKey: string
     accentKey: string
+    windowKey: string
     idx: number
     origBaseColor: THREE.Color
     origAccentColor: THREE.Color
+    origWindowColor: THREE.Color
   } | null>(null)
 
   // park accent shader ref（树冠呼吸）
   const parkAccentShaderRef =
     useRef<THREE.WebGLProgramParametersWithUniforms | null>(null)
 
-  // 为每种建筑创建材质（base + accent 各一个）
+  // 动画 shader refs
+  const shopAccentShaderRef =
+    useRef<THREE.WebGLProgramParametersWithUniforms | null>(null)
+  const factoryAccentShaderRef =
+    useRef<THREE.WebGLProgramParametersWithUniforms | null>(null)
+  const powerPlantAccentShaderRef =
+    useRef<THREE.WebGLProgramParametersWithUniforms | null>(null)
+  const plazaAccentShaderRef =
+    useRef<THREE.WebGLProgramParametersWithUniforms | null>(null)
+  const hospitalAccentShaderRef =
+    useRef<THREE.WebGLProgramParametersWithUniforms | null>(null)
+  const fireStationAccentShaderRef =
+    useRef<THREE.WebGLProgramParametersWithUniforms | null>(null)
+
+  // 跟踪上一帧的 nightFactor 用于检测变化
+  const prevNightFactorRef = useRef(-1)
+
+  // 为每种建筑创建材质（base + accent + windows 各一个）
+  // 按建筑类别分配渐变贴图：
+  // 住宅/商业/服务-市政: base=5-step, accent=4-step (柔和)
+  // 工业/服务-应急: base=3-step, accent=3-step (粗犷)
   const materials = useMemo(() => {
-    const gradientMap = getGradientMap3()
+    const gm3 = getGradientMap3()
+    const gm4 = getGradientMap4()
+    const gm5 = getGradientMap5()
+
+    // 工业/应急类使用 3-step
+    const industrialIds: BuildingId[] = [
+      'factory',
+      'heavy_industry',
+      'warehouse',
+      'fire_station',
+      'police_station',
+      'power_plant',
+    ]
+    // 商业类（日间微光）
+    const commercialIds: BuildingId[] = ['shop', 'office', 'mall']
+
     const mats: Record<string, THREE.MeshToonMaterial> = {}
     for (const id of RENDERABLE_IDS) {
+      const isIndustrial = industrialIds.includes(id)
+      const baseGradient = isIndustrial ? gm3 : gm5
+      const accentGradient = isIndustrial ? gm3 : gm4
+
       mats[`${id}_base`] = new THREE.MeshToonMaterial({
         color: new THREE.Color(BUILDING_COLORS[id].base),
-        gradientMap,
+        gradientMap: baseGradient,
       })
       const accentMat = new THREE.MeshToonMaterial({
         color: new THREE.Color(BUILDING_COLORS[id].accent),
-        gradientMap,
+        gradientMap: accentGradient,
+        // 树冠半球需要双面渲染以避免从侧面看穿
+        side: id === 'park' ? THREE.DoubleSide : THREE.FrontSide,
       })
-      // park accent: 注入树冠呼吸 uniform
+
+      // 动画 shader 注入
       if (id === 'park') {
         accentMat.onBeforeCompile = shader => {
           shader.uniforms.uBreathScale = { value: 1.0 }
+          shader.vertexShader = `uniform float uBreathScale;\n${shader.vertexShader}`
           shader.vertexShader = shader.vertexShader.replace(
             '#include <begin_vertex>',
             `#include <begin_vertex>
@@ -152,19 +215,99 @@ transformed *= uBreathScale;`
           )
           parkAccentShaderRef.current = shader
         }
+      } else if (id === 'shop') {
+        accentMat.onBeforeCompile = shader => {
+          shader.uniforms.uAwningSway = { value: 0.0 }
+          shader.vertexShader = `uniform float uAwningSway;\n${shader.vertexShader}`
+          shader.vertexShader = shader.vertexShader.replace(
+            '#include <begin_vertex>',
+            `#include <begin_vertex>
+transformed.x += uAwningSway;`
+          )
+          shopAccentShaderRef.current = shader
+        }
+      } else if (id === 'factory') {
+        accentMat.onBeforeCompile = shader => {
+          shader.uniforms.uChimneyPulse = { value: 1.0 }
+          shader.vertexShader = `uniform float uChimneyPulse;\n${shader.vertexShader}`
+          shader.vertexShader = shader.vertexShader.replace(
+            '#include <begin_vertex>',
+            `#include <begin_vertex>
+transformed.y *= uChimneyPulse;`
+          )
+          factoryAccentShaderRef.current = shader
+        }
+      } else if (id === 'power_plant') {
+        accentMat.onBeforeCompile = shader => {
+          shader.uniforms.uTowerHaze = { value: 1.0 }
+          shader.vertexShader = `uniform float uTowerHaze;\n${shader.vertexShader}`
+          shader.vertexShader = shader.vertexShader.replace(
+            '#include <begin_vertex>',
+            `#include <begin_vertex>
+transformed.y *= uTowerHaze;`
+          )
+          powerPlantAccentShaderRef.current = shader
+        }
+      } else if (id === 'plaza') {
+        accentMat.onBeforeCompile = shader => {
+          shader.uniforms.uFountainBob = { value: 0.0 }
+          shader.vertexShader = `uniform float uFountainBob;\n${shader.vertexShader}`
+          shader.vertexShader = shader.vertexShader.replace(
+            '#include <begin_vertex>',
+            `#include <begin_vertex>
+transformed.y += uFountainBob;`
+          )
+          plazaAccentShaderRef.current = shader
+        }
+      } else if (id === 'hospital') {
+        accentMat.onBeforeCompile = shader => {
+          shader.uniforms.uBeaconPulse = { value: 1.0 }
+          shader.vertexShader = `uniform float uBeaconPulse;\n${shader.vertexShader}`
+          shader.vertexShader = shader.vertexShader.replace(
+            '#include <begin_vertex>',
+            `#include <begin_vertex>
+transformed.x *= uBeaconPulse;
+transformed.z *= uBeaconPulse;`
+          )
+          hospitalAccentShaderRef.current = shader
+        }
+      } else if (id === 'fire_station') {
+        accentMat.onBeforeCompile = shader => {
+          shader.uniforms.uSirenFlash = { value: 1.0 }
+          shader.vertexShader = `uniform float uSirenFlash;\n${shader.vertexShader}`
+          shader.vertexShader = shader.vertexShader.replace(
+            '#include <begin_vertex>',
+            `#include <begin_vertex>
+transformed *= uSirenFlash;`
+          )
+          fireStationAccentShaderRef.current = shader
+        }
       }
+
       mats[`${id}_accent`] = accentMat
+
+      // 窗户材质：支持 emissive 发光
+      const category = buildingIdToCategory(id)
+      const glowColor = category ? WINDOW_GLOW_COLORS[category] : '#ffd888'
+      // 商业建筑窗户日间微光基准值 0.08
+      const isCommercial = commercialIds.includes(id)
+      mats[`${id}_windows`] = new THREE.MeshToonMaterial({
+        color: new THREE.Color(BUILDING_COLORS[id].window),
+        gradientMap: baseGradient,
+        emissive: new THREE.Color(glowColor),
+        emissiveIntensity: isCommercial ? 0.08 : 0,
+      })
     }
     return mats
   }, [])
 
-  // 建立 mesh 配置列表: 每种建筑 × 每个等级 × (base + accent)
+  // 建立 mesh 配置列表: 每种建筑 × 每个等级 × (base + accent + windows)
   const meshConfigs = useMemo(() => {
     const configs: Array<{
       key: string
       id: BuildingId
       level: number
-      role: 'base' | 'accent'
+      role: 'base' | 'accent' | 'windows'
       geometry: THREE.BufferGeometry
       material: THREE.MeshToonMaterial
       maxCount: number
@@ -195,16 +338,59 @@ transformed *= uBreathScale;`
           material: materials[`${id}_accent`],
           maxCount,
         })
+        // 仅当窗户几何体非空时才创建 windows mesh
+        if (pair.windows.attributes.position) {
+          configs.push({
+            key: windowMeshKey(id, lvl),
+            id,
+            level: lvl,
+            role: 'windows',
+            geometry: pair.windows,
+            material: materials[`${id}_windows`],
+            maxCount,
+          })
+        }
       }
     }
     return configs
   }, [materials])
 
   useFrame(({ clock }) => {
+    const t = clock.elapsedTime
     // 树冠呼吸动画
     if (parkAccentShaderRef.current) {
       parkAccentShaderRef.current.uniforms.uBreathScale.value =
-        1.0 + Math.sin(clock.elapsedTime * 0.8) * 0.06
+        1.0 + Math.sin(t * 0.8) * 0.06
+    }
+    // shop 雨棚摇摆
+    if (shopAccentShaderRef.current) {
+      shopAccentShaderRef.current.uniforms.uAwningSway.value =
+        Math.sin(t * 1.2) * 0.015
+    }
+    // factory 烟囱脉动
+    if (factoryAccentShaderRef.current) {
+      factoryAccentShaderRef.current.uniforms.uChimneyPulse.value =
+        1 + Math.sin(t * 2.5) * 0.02
+    }
+    // power_plant 冷却塔蒸汽
+    if (powerPlantAccentShaderRef.current) {
+      powerPlantAccentShaderRef.current.uniforms.uTowerHaze.value =
+        1 + Math.sin(t * 0.5) * 0.015
+    }
+    // plaza 喷泉浮动
+    if (plazaAccentShaderRef.current) {
+      plazaAccentShaderRef.current.uniforms.uFountainBob.value =
+        Math.sin(t * 1.5) * 0.01
+    }
+    // hospital 停机坪信标
+    if (hospitalAccentShaderRef.current) {
+      hospitalAccentShaderRef.current.uniforms.uBeaconPulse.value =
+        1 + Math.sin(t * 3.0) * 0.03
+    }
+    // fire_station 警灯闪烁
+    if (fireStationAccentShaderRef.current) {
+      fireStationAccentShaderRef.current.uniforms.uSirenFlash.value =
+        1 + Math.sin(t * 4.0) * 0.025
     }
 
     const store = useGameStore.getState()
@@ -245,6 +431,28 @@ transformed *= uBreathScale;`
     }
     const hoverChanged = hoverGridKey !== prevHoverKeyRef.current
     const colorsRebuilt = mapChanged || effChanged
+
+    // 昼夜窗户发光更新
+    const currentDay = state.time.day
+    const timeOfDay = getTimeOfDay(currentDay)
+    const nightFactor = getNightFactor(timeOfDay)
+    const nightFactorChanged =
+      Math.abs(nightFactor - prevNightFactorRef.current) > 0.01
+    if (nightFactorChanged) {
+      prevNightFactorRef.current = nightFactor
+      // 更新所有窗户材质的 emissiveIntensity
+      for (const id of RENDERABLE_IDS) {
+        const winMat = materials[`${id}_windows`]
+        if (winMat) {
+          const category = buildingIdToCategory(id)
+          const isCommercial = category === 'commercial'
+          // 商业建筑保持日间微光基准值 0.08
+          winMat.emissiveIntensity = isCommercial
+            ? 0.08 + nightFactor * 0.92
+            : nightFactor * 1.0
+        }
+      }
+    }
 
     if (!colorsRebuilt && !hoverChanged) return
 
@@ -321,8 +529,10 @@ transformed *= uBreathScale;`
             const level = tile.level || 1
             const bKey = baseMeshKey(bid, level)
             const aKey = accentMeshKey(bid, level)
+            const wKey = windowMeshKey(bid, level)
             const baseMesh = meshRefs.current[bKey]
             const accentMesh = meshRefs.current[aKey]
+            const windowMesh = meshRefs.current[wKey]
             if (!baseMesh || !accentMesh) continue
 
             const idx = indices[bKey]++
@@ -331,6 +541,7 @@ transformed *= uBreathScale;`
             setBuildingInstance(
               baseMesh,
               accentMesh,
+              windowMesh,
               idx,
               x,
               y,
@@ -344,6 +555,7 @@ transformed *= uBreathScale;`
             buildingInstanceMap.current.set(tileKey, {
               baseKey: bKey,
               accentKey: aKey,
+              windowKey: wKey,
               idx,
               bid,
             })
@@ -371,15 +583,21 @@ transformed *= uBreathScale;`
           if (cfg.role === 'base') {
             const count = indices[cfg.key] ?? 0
             mesh.count = count
-            // accent mesh 使用相同 count
+            // accent 和 windows mesh 使用相同 count
             const aMesh = meshRefs.current[accentMeshKey(cfg.id, cfg.level)]
+            const wMesh = meshRefs.current[windowMeshKey(cfg.id, cfg.level)]
             if (aMesh) aMesh.count = count
+            if (wMesh) wMesh.count = count
             if (count > 0) {
               mesh.instanceMatrix.needsUpdate = true
               if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true
               if (aMesh) {
                 aMesh.instanceMatrix.needsUpdate = true
                 if (aMesh.instanceColor) aMesh.instanceColor.needsUpdate = true
+              }
+              if (wMesh) {
+                wMesh.instanceMatrix.needsUpdate = true
+                if (wMesh.instanceColor) wMesh.instanceColor.needsUpdate = true
               }
             }
           }
@@ -398,8 +616,10 @@ transformed *= uBreathScale;`
           if (oldEntry) {
             const bk = oldEntry.baseKey
             const ak = oldEntry.accentKey
+            const wk = oldEntry.windowKey
             const baseMesh = meshRefs.current[bk]
             const accentMesh = meshRefs.current[ak]
+            const windowMesh = meshRefs.current[wk]
             if (baseMesh && accentMesh) {
               const lastIdx = (meshCounts.current[bk] ?? 1) - 1
               if (oldEntry.idx !== lastIdx) {
@@ -422,6 +642,17 @@ transformed *= uBreathScale;`
                   const tmpC = new THREE.Color()
                   accentMesh.getColorAt(lastIdx, tmpC)
                   accentMesh.setColorAt(oldEntry.idx, tmpC)
+                }
+
+                // window mesh
+                if (windowMesh) {
+                  windowMesh.getMatrixAt(lastIdx, tmpMatrix)
+                  windowMesh.setMatrixAt(oldEntry.idx, tmpMatrix)
+                  if (windowMesh.instanceColor) {
+                    const tmpC = new THREE.Color()
+                    windowMesh.getColorAt(lastIdx, tmpC)
+                    windowMesh.setColorAt(oldEntry.idx, tmpC)
+                  }
                 }
 
                 // 更新被移动实例的反向映射
@@ -466,8 +697,10 @@ transformed *= uBreathScale;`
           const level = tile.level || 1
           const bKey = baseMeshKey(bid, level)
           const aKey = accentMeshKey(bid, level)
+          const wKey = windowMeshKey(bid, level)
           const baseMesh = meshRefs.current[bKey]
           const accentMesh = meshRefs.current[aKey]
+          const windowMesh = meshRefs.current[wKey]
           if (!baseMesh || !accentMesh) continue
 
           const idx = meshCounts.current[bKey] ?? 0
@@ -476,6 +709,7 @@ transformed *= uBreathScale;`
           setBuildingInstance(
             baseMesh,
             accentMesh,
+            windowMesh,
             idx,
             x,
             y,
@@ -488,6 +722,7 @@ transformed *= uBreathScale;`
           buildingInstanceMap.current.set(tileKey, {
             baseKey: bKey,
             accentKey: aKey,
+            windowKey: wKey,
             idx,
             bid,
           })
@@ -518,14 +753,22 @@ transformed *= uBreathScale;`
           baseMesh.instanceMatrix.needsUpdate = true
           if (baseMesh.instanceColor) baseMesh.instanceColor.needsUpdate = true
 
-          // 从 bk 提取 accent key
+          // 从 bk 提取 accent key 和 window key
           const ak = bk.replace('_base_', '_accent_')
+          const wk = bk.replace('_base_', '_windows_')
           const accentMesh = meshRefs.current[ak]
           if (accentMesh) {
             accentMesh.count = count
             accentMesh.instanceMatrix.needsUpdate = true
             if (accentMesh.instanceColor)
               accentMesh.instanceColor.needsUpdate = true
+          }
+          const windowMesh = meshRefs.current[wk]
+          if (windowMesh) {
+            windowMesh.count = count
+            windowMesh.instanceMatrix.needsUpdate = true
+            if (windowMesh.instanceColor)
+              windowMesh.instanceColor.needsUpdate = true
           }
         }
       }
@@ -538,6 +781,7 @@ transformed *= uBreathScale;`
         const prev = prevHoverRef.current
         const baseMesh = meshRefs.current[prev.baseKey]
         const accentMesh = meshRefs.current[prev.accentKey]
+        const windowMesh = meshRefs.current[prev.windowKey]
         if (baseMesh) {
           baseMesh.setColorAt(prev.idx, prev.origBaseColor)
           if (baseMesh.instanceColor) baseMesh.instanceColor.needsUpdate = true
@@ -546,6 +790,11 @@ transformed *= uBreathScale;`
           accentMesh.setColorAt(prev.idx, prev.origAccentColor)
           if (accentMesh.instanceColor)
             accentMesh.instanceColor.needsUpdate = true
+        }
+        if (windowMesh) {
+          windowMesh.setColorAt(prev.idx, prev.origWindowColor)
+          if (windowMesh.instanceColor)
+            windowMesh.instanceColor.needsUpdate = true
         }
       }
 
@@ -558,15 +807,21 @@ transformed *= uBreathScale;`
         if (entry) {
           const baseMesh = meshRefs.current[entry.baseKey]
           const accentMesh = meshRefs.current[entry.accentKey]
+          const windowMesh = meshRefs.current[entry.windowKey]
           if (baseMesh?.instanceColor && accentMesh?.instanceColor) {
             baseMesh.getColorAt(entry.idx, hoverOrigColor)
             accentMesh.getColorAt(entry.idx, hoverOrigAccentColor)
+            if (windowMesh?.instanceColor) {
+              windowMesh.getColorAt(entry.idx, hoverOrigWindowColor)
+            }
             prevHoverRef.current = {
               baseKey: entry.baseKey,
               accentKey: entry.accentKey,
+              windowKey: entry.windowKey,
               idx: entry.idx,
               origBaseColor: hoverOrigColor.clone(),
               origAccentColor: hoverOrigAccentColor.clone(),
+              origWindowColor: hoverOrigWindowColor.clone(),
             }
             tmpColor.copy(hoverOrigColor).lerp(hoverWhite, 0.35)
             baseMesh.setColorAt(entry.idx, tmpColor)
@@ -575,6 +830,12 @@ transformed *= uBreathScale;`
             tmpColor.copy(hoverOrigAccentColor).lerp(hoverWhite, 0.35)
             accentMesh.setColorAt(entry.idx, tmpColor)
             accentMesh.instanceColor.needsUpdate = true
+
+            if (windowMesh?.instanceColor) {
+              tmpColor.copy(hoverOrigWindowColor).lerp(hoverWhite, 0.35)
+              windowMesh.setColorAt(entry.idx, tmpColor)
+              windowMesh.instanceColor.needsUpdate = true
+            }
           }
         }
       }
@@ -619,10 +880,11 @@ function applyEfficiencyColor(
   }
 }
 
-/** 设置建筑实例的 matrix 和颜色（同时设置 base 和 accent） */
+/** 设置建筑实例的 matrix 和颜色（同时设置 base、accent 和 windows） */
 function setBuildingInstance(
   baseMesh: THREE.InstancedMesh,
   accentMesh: THREE.InstancedMesh,
+  windowMesh: THREE.InstancedMesh | null,
   idx: number,
   x: number,
   y: number,
@@ -674,9 +936,10 @@ function setBuildingInstance(
   dummy.rotation.set(0, -(buildingRotation * Math.PI) / 2, 0)
   dummy.updateMatrix()
 
-  // 同一个 matrix 设到 base 和 accent
+  // 同一个 matrix 设到 base、accent 和 windows
   baseMesh.setMatrixAt(idx, dummy.matrix)
   accentMesh.setMatrixAt(idx, dummy.matrix)
+  if (windowMesh) windowMesh.setMatrixAt(idx, dummy.matrix)
 
   // base 颜色
   const bid = tile.buildingId as BuildingId
@@ -710,4 +973,10 @@ function setBuildingInstance(
     }
   }
   accentMesh.setColorAt(idx, tmpColor)
+
+  // window 颜色
+  if (windowMesh) {
+    tmpColor.set(BUILDING_COLORS[bid].window)
+    windowMesh.setColorAt(idx, tmpColor)
+  }
 }
