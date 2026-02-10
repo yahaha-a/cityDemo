@@ -157,3 +157,23 @@ export function getDayNightParams(
 
   return result
 }
+
+/** 计算夜间因子 [0,1]：0=白天, 1=夜晚，基于 ambient 强度平滑过渡 */
+export function getNightFactor(t: number): number {
+  // 用一个临时对象获取 ambient intensity
+  const params = getDayNightParams(t, tmpDayNightParams)
+  const ambient = params.ambientIntensity
+  if (ambient >= 0.35) return 0
+  if (ambient <= 0.15) return 1
+  return 1 - (ambient - 0.15) / (0.35 - 0.15)
+}
+
+// 复用临时对象避免每帧分配
+const tmpDayNightParams: DayNightParams = {
+  ambientIntensity: 0.6,
+  dirIntensity: 0.9,
+  skyTopColor: new THREE.Color(),
+  skyBottomColor: new THREE.Color(),
+  fogColor: new THREE.Color(),
+  sunPosition: new THREE.Vector3(),
+}

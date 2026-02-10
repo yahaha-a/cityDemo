@@ -1,5 +1,5 @@
 import { TerrainType } from 'shared/types'
-import type { BuildingId } from 'shared/types/building-defs'
+import type { BuildingId, BuildingCategory } from 'shared/types/building-defs'
 
 /** 地形建造成本乘数 */
 export const TERRAIN_BUILD_COST_MULTIPLIER: Record<TerrainType, number> = {
@@ -62,26 +62,42 @@ export const DEMOLISH_REFUND_RATIO = 0.5
 
 export const BUILDING_COLORS: Record<
   BuildingId,
-  { base: string; accent: string }
+  { base: string; accent: string; window: string }
 > = {
-  empty: { base: '#88dca0', accent: '#60c480' },
-  road: { base: '#d8cfc0', accent: '#b8b0a0' },
-  house: { base: '#e8d080', accent: '#c06848' },
-  apartment: { base: '#e0c070', accent: '#b85840' },
-  residential_complex: { base: '#d8b060', accent: '#a84830' },
-  shop: { base: '#e8c858', accent: '#c09030' },
-  office: { base: '#b8c890', accent: '#889860' },
-  mall: { base: '#e0b868', accent: '#b87838' },
-  factory: { base: '#90a880', accent: '#688858' },
-  heavy_industry: { base: '#889088', accent: '#687068' },
-  warehouse: { base: '#b8a888', accent: '#988868' },
-  park: { base: '#78c860', accent: '#50a038' },
-  plaza: { base: '#d8c890', accent: '#b8a068' },
-  school: { base: '#a088c0', accent: '#7860a0' },
-  hospital: { base: '#e8d0c8', accent: '#d08080' },
-  fire_station: { base: '#d87850', accent: '#b85030' },
-  police_station: { base: '#6090b8', accent: '#407098' },
-  power_plant: { base: '#d0b048', accent: '#b08828' },
+  empty: { base: '#88dca0', accent: '#60c480', window: '#88dca0' },
+  road: { base: '#d8cfc0', accent: '#b8b0a0', window: '#d8cfc0' },
+  // 住宅: 暖奶油色→赤陶色系
+  house: { base: '#f0d888', accent: '#d06848', window: '#b8d8e8' },
+  apartment: { base: '#e8c878', accent: '#c85838', window: '#a8c8d8' },
+  residential_complex: {
+    base: '#e0b868',
+    accent: '#b84828',
+    window: '#98b8c8',
+  },
+  // 商业: 金色-琥珀色系
+  shop: { base: '#f0d060', accent: '#d89830', window: '#c8e0e8' },
+  office: { base: '#c8d8a0', accent: '#90a868', window: '#b0d0e0' },
+  mall: { base: '#e8c060', accent: '#c08030', window: '#b8d0d8' },
+  // 工业: 橄榄绿-钢灰色系
+  factory: { base: '#98b088', accent: '#709060', window: '#90a8b0' },
+  heavy_industry: { base: '#909898', accent: '#707878', window: '#889098' },
+  warehouse: { base: '#c0b090', accent: '#a09070', window: '#98a8a8' },
+  // 服务: 每种建筑独特标志色
+  park: { base: '#80d068', accent: '#58b040', window: '#80d068' },
+  plaza: { base: '#e0d098', accent: '#c0a870', window: '#e0d098' },
+  school: { base: '#b090d0', accent: '#8868b0', window: '#a0c0d0' },
+  hospital: { base: '#f0d8d0', accent: '#e08888', window: '#b0d0e0' },
+  fire_station: { base: '#e07850', accent: '#c05028', window: '#a0b8c0' },
+  police_station: { base: '#6898c8', accent: '#4878a8', window: '#98b8d0' },
+  power_plant: { base: '#d8b850', accent: '#b89028', window: '#90a8a8' },
+}
+
+/** 夜间窗户发光颜色，按建筑类别 */
+export const WINDOW_GLOW_COLORS: Record<BuildingCategory, string> = {
+  residential: '#ffd888',
+  commercial: '#fff0c0',
+  industrial: '#e8a840',
+  service: '#d0e8ff',
 }
 
 // === 建筑升级常量 ===

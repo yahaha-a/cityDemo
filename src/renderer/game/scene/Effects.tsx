@@ -31,9 +31,9 @@ export function Effects() {
         normalThreshold={0.4}
       />
       <Bloom
-        intensity={0.08}
-        luminanceSmoothing={0.4}
-        luminanceThreshold={0.9}
+        intensity={0.15}
+        luminanceSmoothing={0.3}
+        luminanceThreshold={0.65}
       />
       <BrightnessContrast brightness={0.03} contrast={0.06} />
       <HueSaturation hue={0.02} saturation={0.12} />
