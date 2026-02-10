@@ -1,23 +1,15 @@
 import { useRef, useMemo } from 'react'
 import * as THREE from 'three'
 import { useFrame } from '@react-three/fiber'
-import { TerrainType, RoadType } from 'shared/types'
+import { type TerrainType, RoadType } from 'shared/types'
 import { MAP_WIDTH, MAP_HEIGHT } from '../config'
 import { getGradientMap5 } from './toon-materials'
 import { useGameStore } from '../stores/game-store'
 import type { GameEngine } from '../engine/game-engine'
+import { TERRAIN_Y_MAP } from './scene-constants'
 
 const dummy = new THREE.Object3D()
 const ROAD_HEIGHT = 0.02
-
-// 地形高度偏移（与 TerrainGrid / Buildings 保持一致）
-const TERRAIN_Y_MAP: Record<TerrainType, number> = {
-  [TerrainType.Plain]: 0,
-  [TerrainType.Hill]: 0.15,
-  [TerrainType.Water]: -0.08,
-  [TerrainType.Fertile]: 0,
-  [TerrainType.Rocky]: 0.05,
-}
 
 // 各道路类型颜色
 const ROAD_TYPE_COLORS: Record<RoadType, string> = {

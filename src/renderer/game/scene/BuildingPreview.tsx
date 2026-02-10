@@ -1,21 +1,13 @@
 import { useRef, useMemo } from 'react'
 import * as THREE from 'three'
 import { useFrame } from '@react-three/fiber'
-import { TerrainType } from 'shared/types'
 import type { BuildingId } from 'shared/types/building-defs'
 import { rotateFootprint } from 'shared/types/building-defs'
 import { getBuildingDef } from '../config/building-defs'
 import { getBuildingGeometry } from './building-geometries'
 import { MAP_WIDTH, MAP_HEIGHT } from '../config'
 import { useGameStore } from '../stores/game-store'
-
-const TERRAIN_Y_MAP: Record<TerrainType, number> = {
-  [TerrainType.Plain]: 0,
-  [TerrainType.Hill]: 0.15,
-  [TerrainType.Water]: -0.08,
-  [TerrainType.Fertile]: 0,
-  [TerrainType.Rocky]: 0.05,
-}
+import { TERRAIN_Y_MAP } from './scene-constants'
 
 /**
  * 建筑放置预览 — 选中建筑工具后，在悬停位置显示半透明的 3D 建筑模型
