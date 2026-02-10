@@ -1,18 +1,10 @@
 import { useRef, useMemo } from 'react'
 import * as THREE from 'three'
 import { useFrame } from '@react-three/fiber'
-import { ToolType, TerrainType } from 'shared/types'
+import { ToolType } from 'shared/types'
 import { MAP_WIDTH, MAP_HEIGHT } from '../config'
 import { useGameStore } from '../stores/game-store'
-
-// 地形高度（与 TerrainGrid 一致），加半厚度 0.05 得到顶面
-const TERRAIN_TOP_Y: Record<TerrainType, number> = {
-  [TerrainType.Plain]: 0.05,
-  [TerrainType.Hill]: 0.2,
-  [TerrainType.Water]: -0.03,
-  [TerrainType.Fertile]: 0.05,
-  [TerrainType.Rocky]: 0.1,
-}
+import { getTerrainTopY } from './scene-constants'
 
 export function HoverIndicator() {
   const meshRef = useRef<THREE.Mesh>(null)
@@ -81,7 +73,7 @@ export function HoverIndicator() {
     const worldX = x - MAP_WIDTH / 2 + 0.5
     const worldZ = y - MAP_HEIGHT / 2 + 0.5
     const terrain = tile.terrain
-    const hoverY = (TERRAIN_TOP_Y[terrain] ?? 0.05) + 0.01
+    const hoverY = getTerrainTopY(terrain) + 0.01
     mesh.position.set(worldX, hoverY, worldZ)
 
     // 判断有效性，仅在材质实际变化时赋值

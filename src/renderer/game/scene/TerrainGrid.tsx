@@ -5,20 +5,9 @@ import { TerrainType } from 'shared/types'
 import { TERRAIN_COLORS, MAP_WIDTH, MAP_HEIGHT } from '../config'
 import { getGradientMap3 } from './toon-materials'
 import { useGameStore } from '../stores/game-store'
+import { TERRAIN_Y_MAP, TERRAIN_THICKNESS } from './scene-constants'
 
 const TILE_UNIT = 1
-
-// 地形高度偏移
-const TERRAIN_Y: Record<TerrainType, number> = {
-  [TerrainType.Plain]: 0,
-  [TerrainType.Hill]: 0.15,
-  [TerrainType.Water]: -0.08,
-  [TerrainType.Fertile]: 0,
-  [TerrainType.Rocky]: 0.05,
-}
-
-// 地形基础块厚度
-const TERRAIN_THICKNESS = 0.1
 
 // 所有地形类型
 const TERRAIN_TYPES = [
@@ -194,7 +183,7 @@ export function TerrainGrid() {
         const idx = indices[t]++
         const worldX = x - MAP_WIDTH / 2 + 0.5
         const worldZ = y - MAP_HEIGHT / 2 + 0.5
-        const terrainY = TERRAIN_Y[t]
+        const terrainY = TERRAIN_Y_MAP[t]
 
         dummy.position.set(worldX, terrainY, worldZ)
         dummy.updateMatrix()

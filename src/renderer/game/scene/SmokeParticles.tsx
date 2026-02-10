@@ -1,10 +1,10 @@
 import { useRef, useMemo } from 'react'
 import * as THREE from 'three'
 import { useFrame } from '@react-three/fiber'
-import { TerrainType } from 'shared/types'
 import type { BuildingId } from 'shared/types/building-defs'
 import { MAP_WIDTH, MAP_HEIGHT } from '../config'
 import { useGameStore } from '../stores/game-store'
+import { TERRAIN_Y_MAP, getLevelHeightMult } from './scene-constants'
 
 const MAX_SMOKE_PARTICLES = 1024
 const SMOKE_BUILDINGS: BuildingId[] = [
@@ -12,15 +12,6 @@ const SMOKE_BUILDINGS: BuildingId[] = [
   'heavy_industry',
   'power_plant',
 ]
-
-// 地形高度偏移（与 TerrainGrid / Buildings 保持一致）
-const TERRAIN_Y: Record<TerrainType, number> = {
-  [TerrainType.Plain]: 0,
-  [TerrainType.Hill]: 0.15,
-  [TerrainType.Water]: -0.08,
-  [TerrainType.Fertile]: 0,
-  [TerrainType.Rocky]: 0.05,
-}
 
 // 烟囱偏移（相对 origin tile 世界坐标）
 // off.x/z = 几何体内烟囱 xz + 包围盒中心偏移(cx, cy)
@@ -32,13 +23,6 @@ interface ChimneyOffset {
   z: number
   yScaled: number
   yFixed: number
-}
-
-// hMult: Lv1=1.0, Lv2=1.5, Lv3=2.2
-function getHMult(level: number): number {
-  if (level === 2) return 1.5
-  if (level >= 3) return 2.2
-  return 1
 }
 
 const CHIMNEY_OFFSETS: Partial<
@@ -176,9 +160,9 @@ export function SmokeParticles() {
           const wx = x - MAP_WIDTH / 2 + 0.5
           const wz = y - MAP_HEIGHT / 2 + 0.5
           // 读取实际地形高度
-          const terrainY = TERRAIN_Y[tile.terrain] ?? 0
+          const terrainY = TERRAIN_Y_MAP[tile.terrain] ?? 0
           const baseTerrainTop = terrainY + 0.05
-          const hMult = getHMult(tile.level || 1)
+          const hMult = getLevelHeightMult(tile.level || 1)
 
           for (const off of offsets) {
             emitters.push({
